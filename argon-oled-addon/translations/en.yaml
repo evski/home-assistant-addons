@@ -1,11 +1,22 @@
 ---
 configuration:
+  screen_off_until_button:
+    name: Screen off until button
+    description: >-
+      Keep the OLED off until the case button is pressed, then turn it off
+      again after the idle timeout. Default off. The helper
+      input_boolean.oled_screen_off_until_button overrides this while it
+      has an on or off state, with no add-on restart. If that helper is
+      missing, unknown, or unavailable, this option is used.
   night_sleep:
     name: Night sleep
     description: >-
       Turn the OLED off overnight. A button press still wakes it and still
       changes screen. After the idle timeout it turns off again until the
-      end time. Default off.
+      end time. Default off. Helpers input_boolean.oled_night_sleep,
+      input_datetime.oled_night_sleep_start, and
+      input_datetime.oled_night_sleep_end override these options when all
+      three are usable.
   night_sleep_start:
     name: Night sleep start (HH:MM)
     description: >-
@@ -15,6 +26,9 @@ configuration:
   night_sleep_end:
     name: Night sleep end (HH:MM)
     description: >-
-      Local 24-hour time the panel turns back on, as HH:MM (for example
-      06:30). If "screen off until button" is also on, the panel stays off
-      at this time until the case button is pressed.
+      Local 24-hour time the night window ends, as HH:MM (for example
+      06:30). If screen off until button is in effect (the option, or
+      input_boolean.oled_screen_off_until_button when that helper is
+      usable), the panel stays off at this time until the case button
+      is pressed. If that helper is off, the panel turns back on here
+      even when the option is on.

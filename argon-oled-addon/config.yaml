@@ -1,5 +1,5 @@
 name: Argon ONE OLED Display
-version: 1.19.0
+version: 1.20.0
 slug: argon_one_oled_display
 description: Display system information on Argon ONE OLED screen
 url: https://github.com/yourusername/argon-oled-ha-addon
@@ -12,8 +12,8 @@ startup: application
 boot: auto
 map:
   - config:rw
-# Required so night-sleep helpers can be read from
-# http://supervisor/core/api/states/<entity> without a restart.
+# Required so the night-sleep helpers and the idle-blanking helper can be
+# read from http://supervisor/core/api/states/<entity> without a restart.
 homeassistant_api: true
 hassio_api: true
 hassio_role: manager

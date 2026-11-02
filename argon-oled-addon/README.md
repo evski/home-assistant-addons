@@ -179,6 +179,8 @@ The press that wakes the panel is still a normal press. Single press moves to th
 
 The startup credits splash is skipped in this mode so the screen does not light during boot. The button keeps working the whole time the panel is off, including the reboot and shutdown holds.
 
+`input_boolean.oled_screen_off_until_button` overrides this option while that helper has an on or off state. The add-on reads it on the same pass as the night-sleep helpers, about every 30 seconds, so a dashboard toggle applies without a restart and without opening the add-on configuration page. Turning it on does not blank the panel immediately; the idle timeout starts from that moment. Turning it off stops idle blanking, and if the panel is dark and the night window is not active the panel turns on and rotation resumes. A missing, unknown, or unavailable helper falls back to this option. `idle_dim_timeout` stays an option. See DOCS.md.
+
 Default: `false`
 
 ### Option: `idle_dim_timeout`
@@ -211,13 +213,13 @@ Turn the OLED off on a local-time schedule. Default off. While the window is act
 
 A window that crosses midnight is the normal case: set the start later than the end, for example 22:00 to 06:30. If the two times are equal, there is no window. The clock is the add-on's local time, so daylight-saving changes follow the wall clock rather than stretching the window by an hour.
 
-When the window ends, behaviour goes back to normal. If `screen_off_until_button` is on, a panel that is already dark stays dark until the next press. Otherwise the panel turns on and screen cycling resumes.
+When the window ends, behaviour goes back to normal. If idle blanking is in effect, a panel that is already dark stays dark until the next press. Otherwise the panel turns on and screen cycling resumes. Idle blanking here is the effective value: `input_boolean.oled_screen_off_until_button` when that helper is usable, and the `screen_off_until_button` option otherwise. An active night window blanks the panel either way.
 
 A restart inside the window boots dark. The credits splash is skipped so the logo does not flash.
 
 Reboot and shutdown holds still work in the window. The panel is switched on before the "release to confirm" prompt and the cancel countdown are drawn.
 
-The same three values can be driven from a dashboard without restarting the add-on. See DOCS.md for the `input_boolean.oled_night_sleep`, `input_datetime.oled_night_sleep_start`, and `input_datetime.oled_night_sleep_end` helpers. When all three exist and are usable they override these options. If any one is missing or unusable, these options are used for the whole window.
+The same three values can be driven from a dashboard without restarting the add-on. See DOCS.md for the `input_boolean.oled_night_sleep`, `input_datetime.oled_night_sleep_start`, and `input_datetime.oled_night_sleep_end` helpers. When all three exist and are usable they override these options. If any one is missing or unusable, these options are used for the whole window. Daytime idle blanking has its own helper, `input_boolean.oled_screen_off_until_button`, read on the same pass. It is not part of that trio.
 
 Default: `false`
 

@@ -599,7 +599,10 @@ class TestHelperOverride(unittest.TestCase):
             calls["n"] += 1
             if not good:
                 return "missing", None
-            return "ok", _states()[entity_id]
+            payload = _states().get(entity_id)
+            if payload is None:
+                return "missing", None
+            return "ok", payload
 
         oled.supervisor_api = MagicMock()
         oled.supervisor_api.get_entity_state.side_effect = get_entity_state
@@ -609,12 +612,13 @@ class TestHelperOverride(unittest.TestCase):
             oled._poll_night_sleep_helpers(1010.0)
             oled._poll_night_sleep_helpers(1029.0)
             self.assertEqual(calls["n"], after_first)
-            self.assertEqual(after_first, 3)
+            # The idle-blanking helper is read on this same pass.
+            self.assertEqual(after_first, len(argon_oled.NIGHT_SLEEP_ENTITIES) + 1)
 
             good = False
             oled._poll_night_sleep_helpers(1000.0 + NIGHT_SLEEP_HELPER_INTERVAL)
             after_bad = calls["n"]
-            self.assertEqual(after_bad, 6)
+            self.assertEqual(after_bad, after_first * 2)
             self.assertIsNone(oled._helper_override)
             # Not due just before the shortened retry, due once it elapses.
             oled._poll_night_sleep_helpers(1034.0)
@@ -642,7 +646,7 @@ class TestHelperOverride(unittest.TestCase):
             oled._poll_night_sleep_helpers(1005.0)
         self.assertEqual(oled._schedule_source, "options")
         self.assertTrue(oled.night_sleep_active)
-        self.assertEqual(calls["n"], 3)
+        self.assertEqual(calls["n"], len(argon_oled.NIGHT_SLEEP_ENTITIES) + 1)
 
     def test_no_token_uses_options_without_calling_the_proxy(self):
         oled = make_oled(night_sleep_enabled=True)
@@ -667,7 +671,10 @@ class TestHelperOverride(unittest.TestCase):
                 states = _states(enabled="off")
             else:
                 states = _states()
-            return "ok", states[entity_id]
+            payload = states.get(entity_id)
+            if payload is None:
+                return "missing", None
+            return "ok", payload
 
         oled.supervisor_api = MagicMock()
         oled.supervisor_api.get_entity_state.side_effect = get_entity_state
@@ -722,7 +729,7 @@ class TestNightSleepConfig(unittest.TestCase):
         self.assertIn('night_sleep_start: "22:00"', text)
         self.assertIn('night_sleep_end: "06:30"', text)
         self.assertIn("night_sleep: false", text)
-        self.assertIn("version: 1.19.0", text)
+        self.assertIn("version: 1.20.0", text)
         self.assertIn("slug: argon_one_oled_display", text)
         self.assertIn("name: Argon ONE OLED Display", text)
         pattern = __import__("re").compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")

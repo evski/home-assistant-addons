@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.20.0] - 2026-11-02
+
+### Added
+- **Idle blanking helper** - `input_boolean.oled_screen_off_until_button` overrides the `screen_off_until_button` option while that entity has a usable on or off state. It is read on the same Supervisor pass as the night-sleep helpers (about every 30 seconds). No add-on restart is required. A missing, unknown, unavailable, or otherwise unusable state falls back to the option. This helper stands alone: it does not have to be present for the night-sleep helpers to apply, and a gap in those three does not ignore a usable idle-blanking state.
+- Turning the helper on starts the idle timeout from that moment. It does not blank the panel immediately. Turning it off stops idle blanking. If the panel is dark and the night window is not active, the panel turns on and screen rotation resumes. During an active night window the panel stays dark; the window still blanks and still ends using the effective idle-blanking value, so a helper that says off brings the panel back when the window ends even if the option is on.
+- Which value is in use (`Home Assistant helpers` or `add-on options`) is logged once per change, at debug level. The option remains the fallback. `idle_dim_timeout` is unchanged and has no helper.
+
 ## [1.19.0] - 2026-11-02
 
 ### Added

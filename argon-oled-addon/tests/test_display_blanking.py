@@ -59,6 +59,10 @@ def make_oled(**overrides):
     oled._night_logged_active = None
     oled._schedule_source = None
     oled._helper_override = None
+    oled._screen_off_override = None
+    oled._idle_blanking_source = None
+    oled._idle_blanking_applied = None
+    oled._idle_wake_error_logged = False
     oled._last_helper_poll = 0.0
     oled._helper_fast_retry = False
     oled._night_wake_pending = False
