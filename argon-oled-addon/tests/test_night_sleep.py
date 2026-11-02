@@ -480,8 +480,11 @@ class TestHelperOverride(unittest.TestCase):
             parse_time_entity({"state": "2026-11-02 06:30:00"}),
             (6, 30),
         )
-        zone = datetime.now().astimezone().tzinfo
-        local = datetime(2026, 6, 15, 22, 15, tzinfo=zone)
+        # Build the sample through the local zone so the offset matches the
+        # date. Attaching summer's 22:15 to the current (winter) tzinfo gives
+        # 21:15 UTC, which reads back as 23:15 here and would pass only on a
+        # UTC runner.
+        local = datetime(2026, 6, 15, 22, 15).astimezone()
         from_timestamp = parse_time_entity({
             "state": "",
             "attributes": {"timestamp": local.timestamp()},
