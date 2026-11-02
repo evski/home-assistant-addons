@@ -15,6 +15,9 @@ SHOW_CREDITS=$(bashio::config 'show_credits')
 SCREEN_OFF_UNTIL_BUTTON=$(bashio::config 'screen_off_until_button')
 IDLE_DIM_TIMEOUT=$(bashio::config 'idle_dim_timeout')
 BUTTON_SOURCE=$(bashio::config 'button_source')
+NIGHT_SLEEP=$(bashio::config 'night_sleep')
+NIGHT_SLEEP_START=$(bashio::config 'night_sleep_start')
+NIGHT_SLEEP_END=$(bashio::config 'night_sleep_end')
 
 # Get addon version from config.yaml
 ADDON_VERSION=$(bashio::addon.version)
@@ -28,6 +31,7 @@ bashio::log.info "Show credits: ${SHOW_CREDITS}"
 bashio::log.info "Screen off until button: ${SCREEN_OFF_UNTIL_BUTTON}"
 bashio::log.info "Idle dim timeout: ${IDLE_DIM_TIMEOUT}s"
 bashio::log.info "Button source: ${BUTTON_SOURCE}"
+bashio::log.info "Night sleep: ${NIGHT_SLEEP} (${NIGHT_SLEEP_START}-${NIGHT_SLEEP_END})"
 bashio::log.info "Addon version: ${ADDON_VERSION}"
 
 # Check if I2C device is available
@@ -47,6 +51,9 @@ export SHOW_CREDITS="${SHOW_CREDITS}"
 export SCREEN_OFF_UNTIL_BUTTON="${SCREEN_OFF_UNTIL_BUTTON}"
 export IDLE_DIM_TIMEOUT="${IDLE_DIM_TIMEOUT}"
 export BUTTON_SOURCE="${BUTTON_SOURCE}"
+export NIGHT_SLEEP="${NIGHT_SLEEP}"
+export NIGHT_SLEEP_START="${NIGHT_SLEEP_START}"
+export NIGHT_SLEEP_END="${NIGHT_SLEEP_END}"
 export ADDON_VERSION="${ADDON_VERSION}"
 
 # Run the OLED display script

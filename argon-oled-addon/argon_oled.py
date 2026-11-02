@@ -7,6 +7,7 @@ Displays system information on the Argon ONE OLED screen
 import time
 import os
 import sys
+import re
 import struct
 import select
 import threading
@@ -242,14 +243,165 @@ def open_power_button(proc_path=INPUT_DEVICES_PROC):
 SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN', '')
 HA_API_URL = 'http://supervisor/core/api'
 
+# How often to re-read the night-sleep helpers. The window itself is checked
+# every main-loop pass; this interval is only the Home Assistant read.
+NIGHT_SLEEP_HELPER_INTERVAL = 30
+# One quicker follow-up when a previously good helper set becomes unusable
+# (a dashboard edit can land one entity at a time).
+NIGHT_SLEEP_HELPER_RETRY = 5
+NIGHT_SLEEP_BOOL_ENTITY = "input_boolean.oled_night_sleep"
+NIGHT_SLEEP_START_ENTITY = "input_datetime.oled_night_sleep_start"
+NIGHT_SLEEP_END_ENTITY = "input_datetime.oled_night_sleep_end"
+NIGHT_SLEEP_ENTITIES = (
+    NIGHT_SLEEP_BOOL_ENTITY,
+    NIGHT_SLEEP_START_ENTITY,
+    NIGHT_SLEEP_END_ENTITY,
+)
+_UNUSABLE_STATES = {"unknown", "unavailable", "none", "null"}
+# HH:MM, HH:MM:SS, or "YYYY-MM-DD HH:MM:SS" / "YYYY-MM-DDTHH:MM:SS".
+_CLOCK_RE = re.compile(
+    r"^(?:\d{4}-\d{2}-\d{2}[ T])?([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$"
+)
+
+
+def local_now():
+    """Timezone-aware local time.
+
+    Wall-clock fields follow the container timezone, which Home Assistant OS
+    sets from the supervisor timezone. DST is whatever that zone says now.
+    """
+    return datetime.now().astimezone()
+
+
+def parse_clock(value):
+    """Return (hour, minute) from a time-of-day string, or None."""
+    if not isinstance(value, str):
+        return None
+    match = _CLOCK_RE.match(value.strip())
+    if not match:
+        return None
+    return int(match.group(1)), int(match.group(2))
+
+
+def format_hhmm(clock):
+    if not clock:
+        return "--:--"
+    return f"{clock[0]:02d}:{clock[1]:02d}"
+
+
+def night_window_contains(now, start, end):
+    """Whether local `now` is inside [start, end).
+
+    start and end are (hour, minute). start == end is an empty window, not
+    a 24-hour sleep. When start is later than end the window crosses
+    midnight. The comparison uses the wall clock, so a DST spring-forward
+    or fall-back does not stretch the window by elapsed UTC time. A civil
+    time that does not exist on a spring-forward morning is simply not
+    inside a window that only covers that missing hour. Both occurrences
+    of a repeated fall-back hour are inside a window that covers it.
+    """
+    if start is None or end is None or now is None:
+        return False
+    if start == end:
+        return False
+    current = now.hour * 60 + now.minute
+    start_m = start[0] * 60 + start[1]
+    end_m = end[0] * 60 + end[1]
+    if start_m < end_m:
+        return start_m <= current < end_m
+    return current >= start_m or current < end_m
+
+
+def parse_on_off(state):
+    """Home Assistant on/off. Anything else, including unknown, is unusable."""
+    if not isinstance(state, str):
+        return None
+    value = state.strip().lower()
+    if value == "on":
+        return True
+    if value == "off":
+        return False
+    return None
+
+
+def parse_time_entity(payload):
+    """Time of day from an input_datetime REST payload.
+
+    Prefers an HH:MM[:SS] state (optional date prefix). Otherwise uses the
+    timestamp attribute converted to local time, then hour and minute
+    attributes. unknown / unavailable do not fall through to attributes.
+    """
+    if not isinstance(payload, dict):
+        return None
+    state = payload.get("state")
+    if isinstance(state, str) and state.strip().lower() in _UNUSABLE_STATES:
+        return None
+    if isinstance(state, str):
+        parsed = parse_clock(state)
+        if parsed:
+            return parsed
+    attributes = payload.get("attributes")
+    if not isinstance(attributes, dict):
+        attributes = {}
+    timestamp = attributes.get("timestamp")
+    if isinstance(timestamp, (int, float)) and not isinstance(timestamp, bool):
+        try:
+            local = datetime.fromtimestamp(float(timestamp)).astimezone()
+        except (OverflowError, OSError, ValueError):
+            local = None
+        if local is not None:
+            return local.hour, local.minute
+    hour = attributes.get("hour")
+    minute = attributes.get("minute")
+    if (
+        isinstance(hour, int) and not isinstance(hour, bool)
+        and isinstance(minute, int) and not isinstance(minute, bool)
+        and 0 <= hour <= 23 and 0 <= minute <= 59
+    ):
+        return hour, minute
+    return None
+
+
+def parse_helper_override(payloads):
+    """Return (enabled, start, end) when all three helpers are usable.
+
+    Any missing, unusable, or unparseable entity returns None so the caller
+    uses add-on options for the whole window instead of mixing the two.
+    """
+    if not isinstance(payloads, dict):
+        return None
+    bool_payload = payloads.get(NIGHT_SLEEP_BOOL_ENTITY)
+    start_payload = payloads.get(NIGHT_SLEEP_START_ENTITY)
+    end_payload = payloads.get(NIGHT_SLEEP_END_ENTITY)
+    if not all(isinstance(item, dict) for item in (bool_payload, start_payload, end_payload)):
+        return None
+    enabled = parse_on_off(bool_payload.get("state"))
+    start = parse_time_entity(start_payload)
+    end = parse_time_entity(end_payload)
+    if enabled is None or start is None or end is None:
+        return None
+    return enabled, start, end
+
 
 class ArgonOLED:
     """Argon ONE OLED Display Manager"""
     
-    def __init__(self, screen_list, switch_duration=30, temp_unit='C', debug_logging=False, show_credits=True, version="1.0.0", screen_off_until_button=False, idle_dim_timeout=60, button_source="power_key"):
+    def __init__(self, screen_list, switch_duration=30, temp_unit='C', debug_logging=False, show_credits=True, version="1.0.0", screen_off_until_button=False, idle_dim_timeout=60, button_source="power_key", night_sleep=False, night_sleep_start="22:00", night_sleep_end="06:30"):
         """Initialize the OLED display"""
         self.screen_off_until_button = screen_off_until_button
         self.idle_dim_timeout = idle_dim_timeout
+        self.debug_logging = debug_logging
+        self.night_sleep_enabled = bool(night_sleep)
+        self.night_sleep_start = night_sleep_start or "22:00"
+        self.night_sleep_end = night_sleep_end or "06:30"
+        self.night_sleep_active = False
+        self._night_logged_active = None
+        self._schedule_source = None
+        self._helper_override = None
+        self._last_helper_poll = 0.0
+        self._helper_fast_retry = False
+        self._night_wake_pending = False
+        self._night_wake_error_logged = False
         if button_source not in ("gpio", "power_key"):
             print(f"WARNING: button_source '{button_source}' is not gpio or power_key; using power_key")
             button_source = "power_key"
@@ -268,10 +420,21 @@ class ArgonOLED:
             self.device.clear()
             # luma's init leaves the panel on (DISPLAYON). hide() sends
             # DISPLAYOFF so a dark boot has no residual OLED glow.
-            if self.screen_off_until_button:
+            # Night sleep uses the add-on options here. Helper overrides are
+            # applied in run() before the credits splash, so a restart inside
+            # the window does not draw the logo.
+            options_window = self.night_sleep_enabled and night_window_contains(
+                local_now(),
+                parse_clock(self.night_sleep_start),
+                parse_clock(self.night_sleep_end),
+            )
+            if self.screen_off_until_button or options_window:
                 self.device.hide()
                 self.display_blanked = True
-                print(f"OLED panel off until button press (idle {self.idle_dim_timeout}s)")
+                if self.screen_off_until_button:
+                    print(f"OLED panel off until button press (idle {self.idle_dim_timeout}s)")
+                if options_window:
+                    self.night_sleep_active = True
         except Exception as e:
             print(f"Error initializing OLED: {e}")
             sys.exit(1)
@@ -412,6 +575,148 @@ class ArgonOLED:
             print(message)
             sys.stdout.flush()
 
+    def _blanking_enabled(self):
+        """Panel turns itself off for idle blanking or the night window."""
+        return self.screen_off_until_button or self.night_sleep_active
+
+    def _note_schedule_source(self, source):
+        """Log which schedule is in use, once per change, at debug level."""
+        if source == self._schedule_source:
+            return
+        self._schedule_source = source
+        if source == "homeassistant":
+            self.debug_log("Night sleep schedule source: Home Assistant helpers")
+        else:
+            self.debug_log("Night sleep schedule source: add-on options")
+
+    def _effective_schedule(self):
+        """(enabled, start, end). Helpers win only when all three parsed."""
+        if self._helper_override is not None:
+            return self._helper_override
+        return (
+            bool(self.night_sleep_enabled),
+            parse_clock(self.night_sleep_start),
+            parse_clock(self.night_sleep_end),
+        )
+
+    def _fetch_helper_override(self):
+        """Return a schedule tuple, None if unusable, or 'error' if unread.
+
+        'error' means the proxy could not be read, so the previous good
+        values stay in effect. None means the entities were read and at
+        least one is missing or unusable.
+        """
+        api = getattr(self, "supervisor_api", None)
+        if api is None or not hasattr(api, "get_entity_state"):
+            return "error"
+        payloads = {}
+        for entity in NIGHT_SLEEP_ENTITIES:
+            try:
+                status, data = api.get_entity_state(entity)
+            except Exception as exc:
+                self.debug_log(f"Night sleep helper read failed: {exc}")
+                return "error"
+            if status == "error":
+                return "error"
+            payloads[entity] = data if status == "ok" else None
+        return parse_helper_override(payloads)
+
+    def _poll_night_sleep_helpers(self, now_ts, force=False):
+        """Re-read the three helpers on a modest cadence.
+
+        The night window itself is evaluated every main-loop pass from the
+        cached schedule. This read is the only Home Assistant traffic.
+        """
+        if not force and (now_ts - self._last_helper_poll) < NIGHT_SLEEP_HELPER_INTERVAL:
+            return
+        self._last_helper_poll = now_ts
+        if not SUPERVISOR_TOKEN:
+            self._helper_override = None
+            self._note_schedule_source("options")
+            return
+        outcome = self._fetch_helper_override()
+        if outcome == "error":
+            if self._schedule_source is None:
+                self._note_schedule_source(
+                    "homeassistant" if self._helper_override is not None else "options"
+                )
+            return
+        if outcome is None:
+            had_helpers = self._helper_override is not None
+            self._helper_override = None
+            self._note_schedule_source("options")
+            # A dashboard save can make one helper unreadable for a moment.
+            # Check again shortly, once, instead of waiting the full interval.
+            if had_helpers and not self._helper_fast_retry:
+                self._last_helper_poll = now_ts - (
+                    NIGHT_SLEEP_HELPER_INTERVAL - NIGHT_SLEEP_HELPER_RETRY
+                )
+                self._helper_fast_retry = True
+            return
+        self._helper_fast_retry = False
+        self._helper_override = outcome
+        self._note_schedule_source("homeassistant")
+
+    def _sync_night_sleep(self, now=None):
+        """Enter or leave the night window. Log only on a real transition.
+
+        Entering blanks immediately, without waiting out idle_dim_timeout.
+        Leaving returns to normal behaviour.
+        """
+        if now is None:
+            now = local_now()
+        enabled, start, end = self._effective_schedule()
+        active = bool(enabled) and night_window_contains(now, start, end)
+        was_active = self.night_sleep_active
+        if self._night_logged_active != active:
+            if active:
+                self.debug_log(
+                    f"Night sleep started ({format_hhmm(start)}-{format_hhmm(end)})"
+                )
+            elif self._night_logged_active is not None or was_active:
+                self.debug_log("Night sleep ended")
+            self._night_logged_active = active
+        # Publish before blanking so a press that lands as the window opens
+        # still wakes the panel.
+        self.night_sleep_active = active
+        if active and not was_active:
+            self._night_wake_pending = False
+            self._maybe_blank(force=True)
+        elif was_active and not active:
+            # screen_off_until_button stays dark until the next press.
+            # Otherwise the panel comes back on and cycling resumes.
+            self._night_wake_pending = not self.screen_off_until_button
+            self._finish_night_wake()
+        elif self._night_wake_pending and not active:
+            self._finish_night_wake()
+
+    def _finish_night_wake(self):
+        """Turn the panel on after the window when it was left dark.
+
+        Retries a failed show() on later passes. The failure is logged once.
+        """
+        if not self._night_wake_pending or self.night_sleep_active or self.screen_off_until_button:
+            return
+        with self._panel_lock:
+            if self.button_in_power_hold or self.button_held:
+                return
+            if not self.display_blanked:
+                self._night_wake_pending = False
+                return
+            try:
+                self.device.show()
+            except Exception as e:
+                if not self._night_wake_error_logged:
+                    self.debug_log(f"Error waking display after night sleep: {e}")
+                    self._night_wake_error_logged = True
+                return
+            self.display_blanked = False
+            self.last_switch = time.time()
+            self.last_activity = time.time()
+            self._night_wake_pending = False
+            self._night_wake_error_logged = False
+            self._refresh.set()
+
     def _on_button_activity(self, end_hold=False):
         """Reset the idle timer and wake a blanked panel.
 
@@ -426,12 +731,12 @@ class ArgonOLED:
         as the timer update. Otherwise a hold longer than idle_dim_timeout
         could hide() in the gap before the release was recorded.
         """
-        if not end_hold and not self.screen_off_until_button:
+        if not end_hold and not self._blanking_enabled():
             return
         with self._panel_lock:
             if end_hold:
                 self.button_held = False
-            if not self.screen_off_until_button:
+            if not self._blanking_enabled():
                 return
             self.last_activity = time.time()
             if not self.display_blanked:
@@ -449,19 +754,21 @@ class ArgonOLED:
             self.debug_log("Panel woken by button")
             self._refresh.set()
 
-    def _maybe_blank(self):
+    def _maybe_blank(self, force=False):
         """Turn the panel off with display-off after the idle timeout.
 
-        Does nothing when the mode is disabled, the button is held, or a
-        power confirmation is on screen. Safe to call from the main loop;
-        the button thread is not waited on.
+        Does nothing when neither idle blanking nor night sleep is active,
+        the button is held, or a power confirmation is on screen. force=True
+        blanks as the night window opens, without waiting out the idle
+        timeout. Safe to call from the main loop; the button thread is not
+        waited on.
         """
-        if not self.screen_off_until_button:
+        if not self._blanking_enabled():
             return False
         with self._panel_lock:
             if self.display_blanked or self.button_held or self.button_in_power_hold:
                 return False
-            if time.time() - self.last_activity < self.idle_dim_timeout:
+            if not force and time.time() - self.last_activity < self.idle_dim_timeout:
                 return False
             try:
                 self.device.hide()
@@ -469,7 +776,8 @@ class ArgonOLED:
                 self.debug_log(f"Error blanking display: {e}")
                 return False
             self.display_blanked = True
-            self.debug_log("Panel blanked after idle timeout")
+            if not force:
+                self.debug_log("Panel blanked after idle timeout")
             return True
 
     def _ensure_panel_on_for_power_ui(self):
@@ -477,15 +785,15 @@ class ArgonOLED:
 
         A hold that started while the panel was dark must still draw its
         "release to confirm" message and the 5-second countdown on a panel
-        that is actually on. Does not change gesture timing or classification.
+        that is actually on. This applies whichever mode blanked it, including
+        night sleep with screen_off_until_button left off. Does not change
+        gesture timing or classification.
         """
         with self._panel_lock:
             self.button_in_power_hold = True
-            if not self.screen_off_until_button:
-                return
-            self.last_activity = time.time()
             if not self.display_blanked:
                 return
+            self.last_activity = time.time()
             try:
                 self.device.show()
             except Exception as e:
@@ -499,7 +807,7 @@ class ArgonOLED:
     def _restore_after_power_ui(self):
         """Leave the panel awake with a fresh idle timer after a power prompt ends."""
         with self._panel_lock:
-            if self.screen_off_until_button:
+            if self._blanking_enabled():
                 self.last_activity = time.time()
                 if self.display_blanked:
                     try:
@@ -756,10 +1064,10 @@ class ArgonOLED:
                 draw.text((15, 15), "NO PERMISSION", fill="white", font=self.font_medium)
                 draw.text((5, 35), "Need manager role", fill="white", font=self.font_small)
             time.sleep(3)
-            if self.screen_off_until_button:
+            if self._blanking_enabled():
                 # The power-hold flag would otherwise stay set and
-                # the idle blanker would never run again. When the
-                # mode is off, leave the flag as the previous code did.
+                # the idle blanker would never run again. When neither
+                # blanking mode is on, leave the flag as the previous code did.
                 self._restore_after_power_ui()
         
         elif total_hold >= 10.0 and self.power_management_enabled:
@@ -777,7 +1085,7 @@ class ArgonOLED:
                 draw.text((15, 15), "NO PERMISSION", fill="white", font=self.font_medium)
                 draw.text((5, 35), "Need manager role", fill="white", font=self.font_small)
             time.sleep(3)
-            if self.screen_off_until_button:
+            if self._blanking_enabled():
                 self._restore_after_power_ui()
         
         # A press that woke the panel falls through to here. Do not clear
@@ -899,8 +1207,13 @@ class ArgonOLED:
 
         Auto-rotation and screen draws are skipped while the panel is off
         so a stale switch interval cannot paint a frame after hide().
+        Night sleep is re-checked every pass. Helper entities are re-read
+        on their own, slower cadence.
         """
-        if self.screen_off_until_button:
+        self._poll_night_sleep_helpers(current_time)
+        self._sync_night_sleep()
+
+        if self._blanking_enabled():
             self._maybe_blank()
 
         # Check for button actions
@@ -924,7 +1237,7 @@ class ArgonOLED:
         # Blank again immediately before the draw so this pass cannot both
         # turn the panel off and then paint a screen.
         if not self.button_in_power_hold and not self.display_blanked:
-            if self.screen_off_until_button:
+            if self._blanking_enabled():
                 self._maybe_blank()
             if not self.button_in_power_hold and not self.display_blanked:
                 screen_name = self.screen_list[self.current_screen]
@@ -937,10 +1250,19 @@ class ArgonOLED:
         self.debug_log(f"Switch duration: {self.switch_duration}s")
         self.debug_log(f"Temperature unit: {self.temp_unit}")
         self.debug_log(f"Screen off until button: {self.screen_off_until_button}")
-        if self.screen_off_until_button:
+        if self.screen_off_until_button or self.night_sleep_enabled:
             self.debug_log(f"Idle dim timeout: {self.idle_dim_timeout}s")
         self.debug_log(f"Button source: {self.button_source}")
-        
+        self.debug_log(
+            f"Night sleep: {self.night_sleep_enabled} "
+            f"({self.night_sleep_start}-{self.night_sleep_end})"
+        )
+        # Helpers can move the window relative to the options used in
+        # __init__. Resolve that before the credits splash so a restart
+        # inside the window does not flash the logo.
+        self._poll_night_sleep_helpers(time.time(), force=True)
+        self._sync_night_sleep()
+
         # Show credits splash screen if enabled. Skip it when the panel
         # is configured to boot dark, otherwise the splash would light it.
         if self.show_credits and not self.credits_shown and not self.display_blanked:
@@ -969,7 +1291,7 @@ class ArgonOLED:
                 current_time = time.time()
                 self._service_once(current_time)
 
-                if self.screen_off_until_button and self.display_blanked:
+                if self._blanking_enabled() and self.display_blanked:
                     # Return as soon as the button thread turns the panel on.
                     self._refresh.wait(timeout=1.0)
                     self._refresh.clear()
@@ -997,6 +1319,9 @@ def main():
     screen_off_until_button = os.environ.get('SCREEN_OFF_UNTIL_BUTTON', 'false').lower() in ('true', '1', 'yes')
     idle_dim_timeout = int(os.environ.get('IDLE_DIM_TIMEOUT', '60'))
     button_source = os.environ.get('BUTTON_SOURCE', 'power_key').strip().lower()
+    night_sleep = os.environ.get('NIGHT_SLEEP', 'false').lower() in ('true', '1', 'yes')
+    night_sleep_start = os.environ.get('NIGHT_SLEEP_START', '22:00').strip() or "22:00"
+    night_sleep_end = os.environ.get('NIGHT_SLEEP_END', '06:30').strip() or "06:30"
     
     # Get version from environment (set by run.sh from config.yaml)
     version = os.environ.get('ADDON_VERSION', '1.0.0')
@@ -1012,6 +1337,9 @@ def main():
         screen_off_until_button,
         idle_dim_timeout,
         button_source,
+        night_sleep,
+        night_sleep_start,
+        night_sleep_end,
     )
     oled.run()
 

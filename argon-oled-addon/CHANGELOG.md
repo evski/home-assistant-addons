@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.19.0] - 2026-11-02
+
+### Added
+- **Night sleep** - `night_sleep` (default `false`), `night_sleep_start` (default `22:00`), and `night_sleep_end` (default `06:30`). While the window is active the SSD1306 turns off at the start time and stays in the same wake-on-press behaviour as `screen_off_until_button`: a press wakes the panel and still runs that gesture, then `idle_dim_timeout` blanks it again until the window ends. A press does not cancel the window for the rest of the night.
+- The window uses local wall-clock time. A start later than the end crosses midnight (22:00 to 06:30 is the normal case). Equal times are an empty window, not a 24-hour sleep. DST follows the civil clock.
+- When the window ends, `screen_off_until_button` leaves a dark panel dark until the next press. Otherwise the panel turns on and cycling resumes. A start or restart inside the window boots dark and skips the credits splash.
+- Reboot and shutdown prompts turn the panel on before they draw, including when only night sleep had blanked it.
+- Entering and leaving the window, and which schedule source is in use, are logged once at debug level.
+- **Dashboard helpers** override the three options when all of these exist and are usable: `input_boolean.oled_night_sleep`, `input_datetime.oled_night_sleep_start`, `input_datetime.oled_night_sleep_end`. They are read via the Supervisor core proxy every 30 seconds. A missing, unknown, unavailable, or unparseable entity falls back to the add-on options for the whole window. No add-on restart is required. `homeassistant_api` is now `true`.
+- Supervisor has no time-of-day schema type, so the option times are `HH:MM` strings checked with `match()`. `translations/en.yaml` describes that format on the configuration screen.
+
 ## [1.18.0] - 2026-11-01
 
 ### Added

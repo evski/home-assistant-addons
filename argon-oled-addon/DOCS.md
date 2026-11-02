@@ -143,8 +143,39 @@ Tests are hardware-independent using mocks, allowing development on Windows, Lin
 | `screen_off_until_button` | `SCREEN_OFF_UNTIL_BUTTON` | `false` |
 | `idle_dim_timeout` | `IDLE_DIM_TIMEOUT` | `60` |
 | `button_source` | `BUTTON_SOURCE` | `power_key` |
+| `night_sleep` | `NIGHT_SLEEP` | `false` |
+| `night_sleep_start` | `NIGHT_SLEEP_START` | `22:00` |
+| `night_sleep_end` | `NIGHT_SLEEP_END` | `06:30` |
 
 `screen_off_until_button` keeps the SSD1306 off (`device.hide()` / `device.show()`) until the case button is pressed, then blanks it again after `idle_dim_timeout` seconds without a press. Button gestures are not remapped; the waking press still runs through the single / double / long / power-hold logic. Reboot and shutdown prompts turn the panel on before they draw.
+
+`night_sleep` blanks the panel on a local-time schedule (default 22:00–06:30, and off until enabled). The start time turns the panel off immediately. After that it matches button-idle mode: a press wakes the panel and still performs that press (next, previous, first screen, or a 10s/15s power hold), then `idle_dim_timeout` blanks it again. The window keeps doing that until it ends. A press does not disable the window for the rest of the night. A start later than the end crosses midnight. Identical start and end times are an empty window. Times are compared as wall-clock hours and minutes, so a DST change does not stretch the window by elapsed UTC time.
+
+When the window ends, normal behaviour returns. With `screen_off_until_button` on, a dark panel stays dark until the next press. Otherwise the panel turns on and cycling resumes. A start or restart inside the window boots dark and skips the credits splash. Power prompts call `device.show()` before they draw.
+
+`idle_dim_timeout` applies both to `screen_off_until_button` and to an active night-sleep window.
+
+Supervisor's add-on schema has no time-of-day type (the supported types are `str`, `bool`, `int`, `float`, `email`, `url`, `password`, `port`, `match(regex)`, `list(...)`, and `device`). `night_sleep_start` and `night_sleep_end` are therefore strings constrained with `match(^([01][0-9]|2[0-3]):[0-5][0-9]$)`. The configuration UI describes them as 24-hour HH:MM via `translations/en.yaml`. A dashboard time picker is available through the helpers below.
+
+### Night sleep helpers
+
+The add-on reads three Home Assistant helpers and, when all three are usable, uses them instead of the add-on options. That is the way to toggle night sleep and pick the times from a dashboard without restarting the add-on. `homeassistant_api` is enabled so the add-on can call the Supervisor proxy:
+
+`GET http://supervisor/core/api/states/<entity_id>` with `Authorization: Bearer $SUPERVISOR_TOKEN`.
+
+It re-reads the three states about every 30 seconds from the main loop and caches the last good values. A change applies on the next read. If a previously good set becomes unreadable for a moment, it checks once more after about 5 seconds. The window itself is evaluated every loop from that cache, so 22:00 does not wait for the next helper read.
+
+Create them under **Settings → Devices & services → Helpers → Create helper**:
+
+1. **Toggle**, name `OLED Night Sleep`. Confirm the entity ID is exactly `input_boolean.oled_night_sleep`.
+2. **Time** (time only, not date and time), name `OLED Night Sleep Start`. Entity ID `input_datetime.oled_night_sleep_start`.
+3. **Time**, name `OLED Night Sleep End`. Entity ID `input_datetime.oled_night_sleep_end`.
+
+Home Assistant builds the entity ID from the name. If a name is already taken it may append `_2`. Open the helper and set the entity ID to the value above. The three IDs have to match exactly.
+
+Creating or editing the helpers does not require an add-on restart. Renaming a helper changes its entity ID. The add-on then no longer sees that entity and falls back to the add-on options for the whole window until all three IDs exist again. It does not mix a helper time with an option time.
+
+If any one state is missing, `unknown`, `unavailable`, or not a time, the add-on uses the options. A time may be `HH:MM:SS` in the state (a date prefix is accepted) or a `timestamp` attribute, which is converted to local time. A transport error keeps the last good helper values. With no helpers at all, the options work on their own.
 
 `button_source` selects the input:
 

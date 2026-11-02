@@ -1,0 +1,20 @@
+---
+configuration:
+  night_sleep:
+    name: Night sleep
+    description: >-
+      Turn the OLED off overnight. A button press still wakes it and still
+      changes screen. After the idle timeout it turns off again until the
+      end time. Default off.
+  night_sleep_start:
+    name: Night sleep start (HH:MM)
+    description: >-
+      Local 24-hour time the panel turns off, as HH:MM (for example 22:00).
+      If this is later than the end time, the window crosses midnight.
+      The same time as the end means no window.
+  night_sleep_end:
+    name: Night sleep end (HH:MM)
+    description: >-
+      Local 24-hour time the panel turns back on, as HH:MM (for example
+      06:30). If "screen off until button" is also on, the panel stays off
+      at this time until the case button is pressed.

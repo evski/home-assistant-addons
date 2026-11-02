@@ -228,6 +228,44 @@ class TestSupervisorAPI(unittest.TestCase):
         self.assertEqual(status['backup_state'], 'OK')
         self.assertIsNotNone(status['last_backup'])
 
+    @patch('supervisor_api.requests.get')
+    def test_get_entity_state_ok(self, mock_get):
+        """Night-sleep helpers are read through the core API proxy."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"state": "on", "attributes": {}}
+        mock_get.return_value = mock_response
+
+        status, payload = self.api.get_entity_state("input_boolean.oled_night_sleep")
+
+        self.assertEqual(status, "ok")
+        self.assertEqual(payload["state"], "on")
+        url = mock_get.call_args.args[0]
+        self.assertEqual(
+            url,
+            "http://supervisor/core/api/states/input_boolean.oled_night_sleep",
+        )
+
+    @patch('supervisor_api.requests.get')
+    def test_get_entity_state_missing(self, mock_get):
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_get.return_value = mock_response
+
+        status, payload = self.api.get_entity_state("input_datetime.oled_night_sleep_start")
+
+        self.assertEqual(status, "missing")
+        self.assertIsNone(payload)
+
+    @patch('supervisor_api.requests.get')
+    def test_get_entity_state_transport_error(self, mock_get):
+        mock_get.side_effect = Exception("connection refused")
+
+        status, payload = self.api.get_entity_state("input_datetime.oled_night_sleep_end")
+
+        self.assertEqual(status, "error")
+        self.assertIsNone(payload)
+
 
 if __name__ == '__main__':
     unittest.main()
