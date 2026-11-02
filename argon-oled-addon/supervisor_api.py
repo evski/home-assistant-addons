@@ -44,6 +44,29 @@ class SupervisorAPI:
         except Exception as e:
             self._log(f"{method} request to {endpoint} failed: {e}")
             return None
+
+    def get_entity_state(self, entity_id, timeout=5):
+        """Read one Home Assistant entity via the Supervisor core proxy.
+
+        GET http://supervisor/core/api/states/<entity_id>. Returns
+        ("ok", payload), ("missing", None) on HTTP 404, or ("error", None)
+        when the proxy cannot be read. Does not raise.
+        """
+        response = self.request(f"core/api/states/{entity_id}", timeout=timeout)
+        if response is None:
+            return "error", None
+        if response.status_code == 404:
+            return "missing", None
+        if response.status_code != 200:
+            return "error", None
+        try:
+            payload = response.json()
+        except Exception as exc:
+            self._log(f"State {entity_id} was not JSON: {exc}")
+            return "error", None
+        if not isinstance(payload, dict):
+            return "error", None
+        return "ok", payload
     
     def check_power_permissions(self):
         """Check if addon has permissions to reboot/shutdown the host

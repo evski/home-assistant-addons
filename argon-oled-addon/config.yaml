@@ -1,5 +1,5 @@
 name: Argon ONE OLED Display
-version: 1.18.0
+version: 1.19.0
 slug: argon_one_oled_display
 description: Display system information on Argon ONE OLED screen
 url: https://github.com/yourusername/argon-oled-ha-addon
@@ -12,7 +12,9 @@ startup: application
 boot: auto
 map:
   - config:rw
-homeassistant_api: false
+# Required so night-sleep helpers can be read from
+# http://supervisor/core/api/states/<entity> without a restart.
+homeassistant_api: true
 hassio_api: true
 hassio_role: manager
 gpio: true
@@ -74,6 +76,10 @@ options:
   screen_off_until_button: false
   idle_dim_timeout: 60
   button_source: power_key
+  night_sleep: false
+  # Local 24-hour HH:MM. A start later than the end crosses midnight.
+  night_sleep_start: "22:00"
+  night_sleep_end: "06:30"
 schema:
   temp_unit: list(C|F)
   switch_duration: int(5,300)
@@ -83,3 +89,8 @@ schema:
   screen_off_until_button: bool
   idle_dim_timeout: int(5,3600)
   button_source: list(gpio|power_key)
+  night_sleep: bool
+  # Supervisor has no time-of-day schema type. match() constrains a text
+  # field to 24-hour HH:MM; translations/en.yaml describes that in the UI.
+  night_sleep_start: "match(^([01][0-9]|2[0-3]):[0-5][0-9]$)"
+  night_sleep_end: "match(^([01][0-9]|2[0-3]):[0-5][0-9]$)"

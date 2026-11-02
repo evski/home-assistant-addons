@@ -52,6 +52,17 @@ def make_oled(**overrides):
     oled.credits_shown = False
     oled.version = "1.17.0"
     oled.button_source = "gpio"
+    oled.night_sleep_enabled = False
+    oled.night_sleep_start = "22:00"
+    oled.night_sleep_end = "06:30"
+    oled.night_sleep_active = False
+    oled._night_logged_active = None
+    oled._schedule_source = None
+    oled._helper_override = None
+    oled._last_helper_poll = 0.0
+    oled._helper_fast_retry = False
+    oled._night_wake_pending = False
+    oled._night_wake_error_logged = False
     oled._power_key = None
     oled._panel_lock = threading.Lock()
     oled._refresh = threading.Event()
@@ -550,6 +561,9 @@ class TestOptionParsing(unittest.TestCase):
             "SHOW_CREDITS",
             "DEBUG_LOGGING",
             "BUTTON_SOURCE",
+            "NIGHT_SLEEP",
+            "NIGHT_SLEEP_START",
+            "NIGHT_SLEEP_END",
         }
         env = {key: os.environ[key] for key in removed if key in os.environ}
         with patch.dict(os.environ, env, clear=False):
@@ -561,6 +575,9 @@ class TestOptionParsing(unittest.TestCase):
         self.assertFalse(args[6])
         self.assertEqual(args[7], 60)
         self.assertEqual(args[8], "power_key")
+        self.assertFalse(args[9])
+        self.assertEqual(args[10], "22:00")
+        self.assertEqual(args[11], "06:30")
 
 
 if __name__ == "__main__":

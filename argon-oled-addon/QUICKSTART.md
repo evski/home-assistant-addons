@@ -39,6 +39,7 @@ reboot
    - **temp_unit**: `C` or `F`
    - **switch_duration**: `30` (seconds)
    - **screen_list**: `"logo clock cpu ram temp ip"`
+   - **night_sleep**: off by default. Times are 24-hour `HH:MM` (default `22:00` and `06:30`). A press still wakes the panel. See README.md for the dashboard helpers.
 3. Click **Save**
 
 ### 5. Start

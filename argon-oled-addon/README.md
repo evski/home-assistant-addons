@@ -108,6 +108,9 @@ show_credits: true
 screen_off_until_button: false
 idle_dim_timeout: 60
 button_source: power_key
+night_sleep: false
+night_sleep_start: "22:00"
+night_sleep_end: "06:30"
 ```
 
 ### Option: `temp_unit`
@@ -180,7 +183,7 @@ Default: `false`
 
 ### Option: `idle_dim_timeout`
 
-How long, in seconds, the panel stays on after the last button press when `screen_off_until_button` is enabled. The timer restarts on every press. This option has no effect when `screen_off_until_button` is `false`.
+How long, in seconds, the panel stays on after the last button press before it turns off again. Used when `screen_off_until_button` is enabled, and also while the night-sleep window is active. The timer restarts on every press.
 
 Range: 5-3600 seconds
 
@@ -198,6 +201,33 @@ If the selected source cannot be opened, the add-on log prints a warning that na
 On Home Assistant OS, logind is configured with `HandlePowerKey=ignore` and `HandlePowerKeyLongPress=poweroff`. A short press does not shut the Pi down (that matches a short press, a double press, and the ~0.6s "first screen" hold). A hold of about 5 seconds powers the host off before this add-on's 10 second reboot and 15 second shutdown prompts can finish. To use those two holds, set `HandlePowerKeyLongPress=ignore` in the host's `/etc/systemd/logind.conf` and restart logind. This add-on does not take the key away from logind.
 
 Default: `power_key`
+
+### Option: `night_sleep`
+
+Turn the OLED off on a local-time schedule. Default off. While the window is active the panel blanks itself at the start time (it does not wait for the idle timeout), then behaves like `screen_off_until_button`: a press wakes it and still runs the normal gesture, and `idle_dim_timeout` turns it off again. That repeats until the window ends. The window is not cancelled for the rest of the night by a press.
+
+- **false** - No schedule (default)
+- **true** - Blank between `night_sleep_start` and `night_sleep_end`
+
+A window that crosses midnight is the normal case: set the start later than the end, for example 22:00 to 06:30. If the two times are equal, there is no window. The clock is the add-on's local time, so daylight-saving changes follow the wall clock rather than stretching the window by an hour.
+
+When the window ends, behaviour goes back to normal. If `screen_off_until_button` is on, a panel that is already dark stays dark until the next press. Otherwise the panel turns on and screen cycling resumes.
+
+A restart inside the window boots dark. The credits splash is skipped so the logo does not flash.
+
+Reboot and shutdown holds still work in the window. The panel is switched on before the "release to confirm" prompt and the cancel countdown are drawn.
+
+The same three values can be driven from a dashboard without restarting the add-on. See DOCS.md for the `input_boolean.oled_night_sleep`, `input_datetime.oled_night_sleep_start`, and `input_datetime.oled_night_sleep_end` helpers. When all three exist and are usable they override these options. If any one is missing or unusable, these options are used for the whole window.
+
+Default: `false`
+
+### Option: `night_sleep_start` and `night_sleep_end`
+
+Local times for the night-sleep window, 24-hour `HH:MM` (for example `22:00` and `06:30`). The add-on configuration screen shows them as text fields. Home Assistant Supervisor's option schema has no time-of-day picker, so the field is a string checked with `match(^([01][0-9]|2[0-3]):[0-5][0-9]$)`. The configuration UI names them "Night sleep start (HH:MM)" and "Night sleep end (HH:MM)".
+
+For a real time picker, create the dashboard helpers described in DOCS.md. Those override these options while they are all present, and changing them does not require an add-on restart.
+
+Defaults: `22:00` and `06:30`
 
 ## Hardware Requirements
 
@@ -265,7 +295,7 @@ The physical button provides multiple functions. On an Argon ONE V5 running Home
 | Hold 10s | Reboot system* |
 | Hold 15s | Shutdown system* |
 
-*Requires `hassio_role: manager` permission. A 5-second confirmation countdown is displayed before executing power commands. With `screen_off_until_button` enabled, the press turns the display on first, including when a hold starts while the panel is dark.
+*Requires `hassio_role: manager` permission. A 5-second confirmation countdown is displayed before executing power commands. If the panel is dark (`screen_off_until_button` or the night-sleep window), it is switched on before the prompt and the countdown are drawn, including when a hold starts while the display is off. A short press during night sleep still wakes the panel and still moves to the next screen.
 
 On HAOS the host still receives the power key. A short press does not shut down. A hold of about 5 seconds does (`HandlePowerKeyLongPress=poweroff`) unless that host setting is changed to `ignore`. See `button_source` above.
 
