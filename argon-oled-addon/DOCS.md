@@ -147,35 +147,46 @@ Tests are hardware-independent using mocks, allowing development on Windows, Lin
 | `night_sleep_start` | `NIGHT_SLEEP_START` | `22:00` |
 | `night_sleep_end` | `NIGHT_SLEEP_END` | `06:30` |
 
-`screen_off_until_button` keeps the SSD1306 off (`device.hide()` / `device.show()`) until the case button is pressed, then blanks it again after `idle_dim_timeout` seconds without a press. Button gestures are not remapped; the waking press still runs through the single / double / long / power-hold logic. Reboot and shutdown prompts turn the panel on before they draw.
+`screen_off_until_button` keeps the SSD1306 off (`device.hide()` / `device.show()`) until the case button is pressed, then blanks it again after `idle_dim_timeout` seconds without a press. Button gestures are not remapped; the waking press still runs through the single / double / long / power-hold logic. Reboot and shutdown prompts turn the panel on before they draw. The option stays in the add-on configuration and is the fallback. `input_boolean.oled_screen_off_until_button` overrides it at runtime when that helper has an on or off state. See the helpers section below.
 
 `night_sleep` blanks the panel on a local-time schedule (default 22:00–06:30, and off until enabled). The start time turns the panel off immediately. After that it matches button-idle mode: a press wakes the panel and still performs that press (next, previous, first screen, or a 10s/15s power hold), then `idle_dim_timeout` blanks it again. The window keeps doing that until it ends. A press does not disable the window for the rest of the night. A start later than the end crosses midnight. Identical start and end times are an empty window. Times are compared as wall-clock hours and minutes, so a DST change does not stretch the window by elapsed UTC time.
 
-When the window ends, normal behaviour returns. With `screen_off_until_button` on, a dark panel stays dark until the next press. Otherwise the panel turns on and cycling resumes. A start or restart inside the window boots dark and skips the credits splash. Power prompts call `device.show()` before they draw.
+When the window ends, normal behaviour returns. If idle blanking is in effect, a dark panel stays dark until the next press. Otherwise the panel turns on and cycling resumes. That decision uses the effective idle-blanking value (the helper when it is usable, otherwise the option), so a helper that says off brings the panel back at the end of the window even if the option is on. An active night window blanks the panel whichever way the daytime toggle is set. A start or restart inside the window boots dark and skips the credits splash. Power prompts call `device.show()` before they draw.
 
 `idle_dim_timeout` applies both to `screen_off_until_button` and to an active night-sleep window.
 
 Supervisor's add-on schema has no time-of-day type (the supported types are `str`, `bool`, `int`, `float`, `email`, `url`, `password`, `port`, `match(regex)`, `list(...)`, and `device`). `night_sleep_start` and `night_sleep_end` are therefore strings constrained with `match(^([01][0-9]|2[0-3]):[0-5][0-9]$)`. The configuration UI describes them as 24-hour HH:MM via `translations/en.yaml`. A dashboard time picker is available through the helpers below.
 
-### Night sleep helpers
+### Dashboard helpers
 
-The add-on reads three Home Assistant helpers and, when all three are usable, uses them instead of the add-on options. That is the way to toggle night sleep and pick the times from a dashboard without restarting the add-on. `homeassistant_api` is enabled so the add-on can call the Supervisor proxy:
+The add-on reads four Home Assistant helpers through one Supervisor pass. `homeassistant_api` is enabled so the add-on can call the Supervisor proxy:
 
 `GET http://supervisor/core/api/states/<entity_id>` with `Authorization: Bearer $SUPERVISOR_TOKEN`.
 
-It re-reads the three states about every 30 seconds from the main loop and caches the last good values. A change applies on the next read. If a previously good set becomes unreadable for a moment, it checks once more after about 5 seconds. The window itself is evaluated every loop from that cache, so 22:00 does not wait for the next helper read.
+It re-reads them about every 30 seconds from the main loop and caches the last good values. A change applies on the next read. There is one poller and one HTTP path. The night window and the idle-blanking flag are evaluated every loop from that cache, so 22:00 does not wait for the next helper read. If a previously good night-sleep set, or a previously good idle-blanking value, becomes unreadable for a moment, it checks once more after about 5 seconds. A transport error keeps the last good night-sleep set and the last good idle-blanking value separately.
 
 Create them under **Settings → Devices & services → Helpers → Create helper**:
 
 1. **Toggle**, name `OLED Night Sleep`. Confirm the entity ID is exactly `input_boolean.oled_night_sleep`.
 2. **Time** (time only, not date and time), name `OLED Night Sleep Start`. Entity ID `input_datetime.oled_night_sleep_start`.
 3. **Time**, name `OLED Night Sleep End`. Entity ID `input_datetime.oled_night_sleep_end`.
+4. **Toggle**, name `OLED Screen Off Until Button`. Entity ID `input_boolean.oled_screen_off_until_button`.
 
-Home Assistant builds the entity ID from the name. If a name is already taken it may append `_2`. Open the helper and set the entity ID to the value above. The three IDs have to match exactly.
+Home Assistant builds the entity ID from the name. If a name is already taken it may append `_2`. Open the helper and set the entity ID to the value above.
 
-Creating or editing the helpers does not require an add-on restart. Renaming a helper changes its entity ID. The add-on then no longer sees that entity and falls back to the add-on options for the whole window until all three IDs exist again. It does not mix a helper time with an option time.
+#### Night sleep
 
-If any one state is missing, `unknown`, `unavailable`, or not a time, the add-on uses the options. A time may be `HH:MM:SS` in the state (a date prefix is accepted) or a `timestamp` attribute, which is converted to local time. A transport error keeps the last good helper values. With no helpers at all, the options work on their own.
+When all three night-sleep helpers are usable, they replace the add-on options for the whole window. That is the way to toggle night sleep and pick the times from a dashboard without restarting the add-on. The three IDs have to match exactly. If any one state is missing, `unknown`, `unavailable`, or not a time, the add-on uses the night-sleep options for the whole window. It does not mix a helper time with an option time. A time may be `HH:MM:SS` in the state (a date prefix is accepted) or a `timestamp` attribute, which is converted to local time. With no night-sleep helpers at all, those options work on their own.
+
+Creating or editing the helpers does not require an add-on restart. Renaming a helper changes its entity ID. The add-on then no longer sees that entity and falls back to the add-on options for the whole window until all three IDs exist again.
+
+#### Screen off until button
+
+`input_boolean.oled_screen_off_until_button` stands alone. It overrides `screen_off_until_button` when its state is on or off, even if the night-sleep helpers are missing, and a gap in those three does not ignore a usable on or off here. If this entity is missing, `unknown`, `unavailable`, or otherwise not on or off, the add-on uses the option.
+
+Both directions apply on the next read. Turning it on does not blank the panel immediately. The idle timeout (`idle_dim_timeout`, still an option, with no helper of its own) starts from that moment. Turning it off stops daytime idle blanking. If the panel is dark and no night window is active, the panel turns on and screen rotation resumes. Turning it off during an active night window leaves the panel dark. The night window still blanks on its own schedule, and when the window ends the add-on uses this effective value: helper off means the panel comes back on even if the option is on, and helper on means a dark panel stays dark until the next press.
+
+At startup the helper is read before the credits splash. If it says the panel should stay on, the panel does not boot dark just because the option is on. If it says idle blanking is on, boot matches the option: dark, and the splash is skipped. A restart inside the night window still boots dark. Which source is in use is logged once per change, at debug level: `Idle blanking source: Home Assistant helpers` or `Idle blanking source: add-on options`.
 
 `button_source` selects the input:
 
