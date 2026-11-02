@@ -1,5 +1,7 @@
 # Home Assistant Add-ons
 
+This repository is a fork of [BenWolstencroft/home-assistant-addons](https://github.com/BenWolstencroft/home-assistant-addons). It keeps those add-ons and adds two things to Argon ONE OLED Display: the panel can stay off until the case button is pressed, and the button can be read from the kernel power-key input, which is what an Argon ONE V5 on Home Assistant OS exposes.
+
 A collection of custom Home Assistant add-ons for various hardware and functionality.
 
 ## Available Add-ons
@@ -41,7 +43,7 @@ Intelligent temperature-based fan control for your Argon ONE v5 case.
 1. Go to **Settings** → **Add-ons** → **Add-on Store**
 2. Click the **⋮** menu (three dots) in the top right
 3. Select **Repositories**
-4. Add: `https://github.com/BenWolstencroft/home-assistant-addons`
+4. Add: `https://github.com/evski/home-assistant-addons`
 5. Click **Add**
 6. Install the desired add-on from the store
 
@@ -57,7 +59,8 @@ Requirements vary by add-on. See individual add-on documentation for specific re
 
 ## Support
 
-- 🐛 [Report Issues](https://github.com/BenWolstencroft/home-assistant-addons/issues)
+- 🐛 [Report Issues](https://github.com/evski/home-assistant-addons/issues)
+- Upstream: [BenWolstencroft/home-assistant-addons](https://github.com/BenWolstencroft/home-assistant-addons)
 - 💬 [Home Assistant Community](https://community.home-assistant.io/)
 - 📖 Documentation - See individual add-on folders
 
