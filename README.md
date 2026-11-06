@@ -94,3 +94,9 @@ MIT License - See [LICENSE](argon-oled-addon/LICENSE) for details
 
 - Argon ONE OLED Display: Based on setup scripts from [Argon40](https://www.argon40.com/)
 - Argon ONE Active Cooling: Based on [Jeff Curless's argoneon scripts](https://github.com/JeffCurless/argoneon) and [Argon40](https://www.argon40.com/)
+
+## Igloo AlgoPIN custom integration
+
+Hourly and daily igloohome AlgoPIN guest codes. This is a Home Assistant custom integration, not an add-on. An add-on cannot copy it into the host `custom_components` directory, and this add-on repository is not a HACS integration repository.
+
+Manual install and limits: [igloohome-algopin-install/README.md](igloohome-algopin-install/README.md).

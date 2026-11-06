@@ -1,0 +1,127 @@
+create_hourly_algopin:
+  name: Create hourly AlgoPIN
+  description: >
+    Create an hourly AlgoPIN (1 to 672 hours) in the igloohome cloud.
+    Start and end are in the Home Assistant timezone and are converted to UTC
+    hour boundaries. The lock is not contacted. The PIN is returned only in
+    the service response and is not stored.
+  fields:
+    device_id:
+      name: Lock
+      description: Lock chosen during setup from the account AlgoPIN device list.
+      required: true
+      selector:
+        device:
+          integration: igloohome_algopin
+    access_name:
+      name: Access name
+      description: Sent as accessName. This is a label, not the PIN.
+      required: true
+      selector:
+        text:
+    start:
+      name: Start
+      description: >
+        Start in the Home Assistant timezone. After conversion to UTC the time
+        must fall on an hour, and it may be at most 1 hour in the past.
+      required: true
+      selector:
+        datetime:
+    end:
+      name: End
+      description: >
+        End in the Home Assistant timezone. The UTC duration must be 1 to 672 hours.
+      required: true
+      selector:
+        datetime:
+    variance:
+      name: Variance
+      description: Official hourly variances are 1, 2, or 3.
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 3
+          mode: box
+
+create_daily_algopin:
+  name: Create daily AlgoPIN
+  description: >
+    Create a daily AlgoPIN (29 to 367 whole days) in the igloohome cloud.
+    Start and end are in the Home Assistant timezone and are converted to UTC.
+    Both UTC hours must match. The lock is not contacted. The PIN is returned
+    only in the service response and is not stored.
+  fields:
+    device_id:
+      name: Lock
+      description: Lock chosen during setup from the account AlgoPIN device list.
+      required: true
+      selector:
+        device:
+          integration: igloohome_algopin
+    access_name:
+      name: Access name
+      description: Sent as accessName. This is a label, not the PIN.
+      required: true
+      selector:
+        text:
+    start:
+      name: Start
+      description: Start in the Home Assistant timezone, landing on a UTC hour.
+      required: true
+      selector:
+        datetime:
+    end:
+      name: End
+      description: >
+        End in the Home Assistant timezone. The UTC span must be 29 to 367
+        whole days and the UTC hour must match the start.
+      required: true
+      selector:
+        datetime:
+    variance:
+      name: Variance
+      description: Official daily variances are 1, 2, or 3.
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 3
+          mode: box
+
+revoke_algopin:
+  name: Revoke AlgoPIN
+  description: >
+    Ask a Bridge returned by the account device list to delete a PIN.
+    The home API does this with bridge job type 5. The Bridge delivers the
+    job to the lock over Bluetooth. If the Bridge is offline the API returns
+    406 and the code stays on the lock. This service does not store the PIN.
+    An unactivated AlgoPIN whose start is more than 256 hours after it was
+    created cannot be deleted (the documented 256 rule).
+  fields:
+    device_id:
+      name: Lock
+      description: Lock chosen during setup from the account AlgoPIN device list.
+      required: true
+      selector:
+        device:
+          integration: igloohome_algopin
+    pin:
+      name: PIN
+      description: >
+        The 4 to 9 digit PIN to delete. It is sent only inside the bridge job
+        and is not written to Home Assistant state.
+      required: true
+      selector:
+        text:
+          type: password
+    bridge_id:
+      name: Bridge
+      description: >
+        igloohome bridge device id from the latest device list. Optional when
+        exactly one Bridge is linked to the lock.
+      required: false
+      selector:
+        text:

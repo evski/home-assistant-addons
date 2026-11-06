@@ -1,0 +1,86 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect the igloohome API",
+        "description": "Use the client ID and client secret from an individual igloohome API client (client credentials). The next step lists locks returned by the account. The lock itself is not contacted.",
+        "data": {
+          "client_id": "Client ID",
+          "client_secret": "Client secret"
+        }
+      },
+      "locks": {
+        "title": "Choose locks",
+        "description": "These locks were returned by the AlgoPIN device list. The brand is igloohome. The model is the official supported-devices name when the device id prefix matches.",
+        "data": {
+          "locks": "Locks"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reconnect the igloohome API",
+        "description": "The saved client secret was rejected. Enter a new secret for the same client ID.",
+        "data": {
+          "client_secret": "Client secret"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "igloohome rejected the client ID or client secret.",
+      "cannot_connect": "Home Assistant could not reach the igloohome API.",
+      "payment_required": "igloohome returned HTTP 402. After the trial the published price is $2 per active lock per month.",
+      "no_devices": "The account returned no AlgoPIN-capable devices.",
+      "select_lock": "Choose at least one lock from the list.",
+      "unknown": "The igloohome API returned an unexpected error."
+    },
+    "abort": {
+      "already_configured": "This igloohome API client is already configured.",
+      "reauth_successful": "Reconnected to the igloohome API.",
+      "no_devices": "The account returned no AlgoPIN-capable devices."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Choose locks",
+        "description": "The list was loaded again from the account. Only devices in that response can be saved.",
+        "data": {
+          "locks": "Locks"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "igloohome rejected the saved credentials. Use Reconfigure / reauthentication.",
+      "cannot_connect": "Home Assistant could not reach the igloohome API.",
+      "payment_required": "igloohome returned HTTP 402. After the trial the published price is $2 per active lock per month.",
+      "select_lock": "Choose at least one lock from the list.",
+      "unknown": "The igloohome API returned an unexpected error."
+    },
+    "abort": {
+      "no_devices": "The account returned no AlgoPIN-capable devices."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "api_status": {
+        "name": "API status"
+      },
+      "access_ends": {
+        "name": "API access ends"
+      }
+    }
+  },
+  "services": {
+    "create_hourly_algopin": {
+      "name": "Create hourly AlgoPIN",
+      "description": "Create an hourly AlgoPIN in the igloohome cloud. Times are in the Home Assistant timezone and are converted to UTC. The PIN is returned only in the service response."
+    },
+    "create_daily_algopin": {
+      "name": "Create daily AlgoPIN",
+      "description": "Create a daily AlgoPIN in the igloohome cloud. Times are in the Home Assistant timezone and are converted to UTC. The PIN is returned only in the service response."
+    },
+    "revoke_algopin": {
+      "name": "Revoke AlgoPIN",
+      "description": "Ask a linked Bridge to delete a PIN over Bluetooth (job type 5). This does not delete a code from a lock the Bridge cannot reach. The PIN is not stored."
+    }
+  }
+}
