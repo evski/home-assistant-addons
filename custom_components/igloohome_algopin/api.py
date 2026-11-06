@@ -48,7 +48,7 @@ from igloohome_api import (
 )
 
 from .const import API_ROOT, TOKEN_SKEW
-from .models import classify_algopin, lookup_model
+from .models import is_offered, lookup_model
 from .snapshot import AccountSnapshot, LockView
 
 _LOGGER = logging.getLogger(__name__)
@@ -228,6 +228,14 @@ def bridge_ids_by_lock(locks: list[Device], devices: list[Device]) -> dict[str, 
 
 
 def _parse_device(raw: object) -> Device | None:
+    """Read one ``payload`` object from the devices or support-pins list.
+
+    Official and observed objects also carry ``id``, ``batteryLevel``,
+    ``pairedAt``, and ``homeId``. Those stay on the wire. The picker and the
+    stored config entry use ``deviceId``, ``deviceName``, ``type``, and
+    ``linkedDevices`` only, so a home id and a battery reading are not stored.
+    """
+
     if not isinstance(raw, dict):
         return None
     device_id = raw.get("deviceId")
@@ -325,7 +333,11 @@ class IglooClient:
         raise IglooApiError("device list did not finish within 20 pages", 500)
 
     async def list_algopin_devices(self) -> list[Device]:
-        """GET /home/devices/support-pins, every page. These are the locks the user may choose."""
+        """GET /home/devices/support-pins, every page.
+
+        This is the setup discovery call. It does not create an AlgoPIN and
+        it does not call the jobs API.
+        """
 
         return await self._list_devices("/devices/support-pins")
 
@@ -456,16 +468,12 @@ class IglooClient:
         algopin_devices = await self.list_algopin_devices()
         all_devices = await self.list_devices()
         by_id = {device.device_id: device for device in algopin_devices}
-        eligible = [
-            device
-            for device in algopin_devices
-            if classify_algopin(device.device_id, device.device_type) != "deny"
-        ]
+        eligible = [device for device in algopin_devices if is_offered(device.device_id, device.device_type)]
         bridges = bridge_ids_by_lock(eligible, all_devices)
         locks: list[LockView] = []
         for device_id in sorted(chosen_ids):
             device = by_id.get(device_id)
-            if device is None or device not in eligible:
+            if device is None or not is_offered(device.device_id, device.device_type):
                 continue
             info = lookup_model(device.device_id)
             locks.append(

@@ -22,7 +22,7 @@ from .api import (
     IglooPaymentError,
 )
 from .const import CONF_CLIENT_ID, CONF_CLIENT_SECRET, CONF_LOCKS, DOMAIN
-from .models import classify_algopin, device_label
+from .models import device_label, is_offered
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,19 +36,9 @@ def _client(hass, client_id: str, client_secret: str) -> IglooClient:
 
 
 def _selectable(devices: list[Device]) -> list[Device]:
-    """Keep devices the returned fields do not rule out.
+    """Devices the support-pins payload still allows the user to choose."""
 
-    ``GET /home/devices/support-pins`` is the list the caller already fetched.
-    A device is dropped when its returned ``type`` is Bridge or Fob, or when
-    its device id prefix is AlgoPIN no on the supported-devices table.
-    Unknown prefixes stay in the list as unconfirmed. No model name is added.
-    """
-
-    return [
-        device
-        for device in devices
-        if classify_algopin(device.device_id, device.device_type) != "deny"
-    ]
+    return [device for device in devices if is_offered(device.device_id, device.device_type)]
 
 
 def _lock_schema(devices: list[Device], default: list[str] | None = None) -> vol.Schema:

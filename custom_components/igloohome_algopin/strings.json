@@ -11,7 +11,7 @@
       },
       "locks": {
         "title": "Choose locks",
-        "description": "These devices were returned by GET /home/devices/support-pins. The label shows the device id and its prefix. It does not name a product model. If you are not sure which lock this is, open the igloohome app or API portal, read the device id (the Bluetooth name, for example IGB403fe3b9d), and compare the prefix with https://docs.igloohome.co/home/supported-devices. A retail name such as Smart Deadbolt 4 Metal Grey is not a row on that page.",
+        "description": "These devices were returned by GET /home/devices/support-pins. The label shows the account device name, the device id, and its prefix. It does not name a product model. Battery, pairing time, the internal id, and home id from that response are not stored. If you are not sure which lock this is, open the igloohome app or API portal, read the device id (the Bluetooth name, for example IGB403fe3b9d), and compare the prefix with https://docs.igloohome.co/home/supported-devices. Prefix IGB4 on that table is Deadbolt 2S Metal Grey and AlgoPIN yes. A retail name such as Smart Deadbolt 4 Metal Grey is not a row on that page.",
         "data": {
           "locks": "Locks"
         }
@@ -42,7 +42,7 @@
     "step": {
       "init": {
         "title": "Choose locks",
-        "description": "The list was loaded again from GET /home/devices/support-pins. Labels show the device id and prefix, not a product model. Compare the device id in the igloohome account with https://docs.igloohome.co/home/supported-devices if the prefix is unfamiliar. Smart Deadbolt 4 Metal Grey is not a row on that page.",
+        "description": "The list was loaded again from GET /home/devices/support-pins. Labels show the account device name, the device id, and the prefix, not a product model. Battery, pairing time, the internal id, and home id are not stored. Compare the device id in the igloohome account with https://docs.igloohome.co/home/supported-devices if the prefix is unfamiliar. Prefix IGB4 is Deadbolt 2S Metal Grey, AlgoPIN yes. Smart Deadbolt 4 Metal Grey is not a row on that page.",
         "data": {
           "locks": "Locks"
         }
@@ -80,7 +80,7 @@
     },
     "revoke_algopin": {
       "name": "Revoke AlgoPIN",
-      "description": "Ask a linked Bridge to delete a PIN over Bluetooth (job type 5). If the Bridge cannot reach the lock, the code stays. A job id does not guarantee deletion. The 256-hour limit in the igloohome docs is not applied here. The PIN is not stored."
+      "description": "Ask a linked Bridge to delete a PIN over Bluetooth (job type 5, jobData.pin). HTTP 406 means the Bridge is offline or the lock is not linked, and the code stays. A job id does not guarantee deletion. The 256-hour limit in the igloohome docs is not applied here. The PIN is not stored."
     }
   }
 }

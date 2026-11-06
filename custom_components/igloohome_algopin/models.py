@@ -11,6 +11,13 @@ IGB4 on that table is "Deadbolt 2S Metal Grey" and AlgoPIN is yes.
 OE1X is "Retrofit Lock" and AlgoPIN is no. "Smart Deadbolt 4 Metal Grey"
 is not a row. This module does not treat that retail text as a device id,
 and it does not assign a model name to a Home Assistant device.
+
+``GET /home/devices/support-pins`` is already limited to AlgoPIN-capable
+SKUs. Its 200 body matches ``GET /home/devices``: ``nextCursor`` and
+``payload`` objects with ``id``, ``type``, ``deviceId``, ``deviceName``,
+``batteryLevel``, ``pairedAt``, ``homeId``, and ``linkedDevices``. None of
+those fields is a model name or an AlgoPIN flag. The table below only
+rejects a prefix the page marks AlgoPIN no, and Bridge or Fob types.
 """
 
 from __future__ import annotations
@@ -103,6 +110,17 @@ def classify_algopin(device_id: str, device_type: str | None) -> str:
             return "allow"
         return "unconfirmed"
     return "unconfirmed"
+
+
+def is_offered(device_id: str, device_type: str | None) -> bool:
+    """Whether a support-pins device may be chosen and may receive an entity.
+
+    The endpoint is the AlgoPIN list. This drops only what that list and the
+    published table both rule out: type Bridge or Fob, and a prefix marked
+    AlgoPIN no. IGB4 (Deadbolt 2S Metal Grey) with type Lock is offered.
+    """
+
+    return classify_algopin(device_id, device_type) != "deny"
 
 
 def device_label(device_name: str, device_id: str, device_type: str = "") -> str:

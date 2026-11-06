@@ -41,6 +41,22 @@ def test_component_does_not_persist_pins_or_fire_events():
     assert "async_add_executor_job" not in text
 
 
+def test_setup_discovers_support_pins_and_does_not_create_a_pin():
+    flow = (COMPONENT / "config_flow.py").read_text()
+    assert "list_algopin_devices" in flow
+    assert "create_hourly" not in flow
+    assert "create_daily" not in flow
+    assert "/algopin/" not in flow
+    assert "homeId" not in flow
+    assert "batteryLevel" not in flow
+    sensor = (COMPONENT / "sensor.py").read_text()
+    assert "entity_locks" in sensor
+    assert "battery" not in sensor.lower()
+    manifest = json.loads((COMPONENT / "manifest.json").read_text())
+    assert manifest["requirements"] == ["igloohome-api==0.1.2"]
+    assert manifest["config_flow"] is True
+
+
 def test_strings_json_is_valid():
     strings = json.loads((COMPONENT / "strings.json").read_text())
     assert "create_hourly_algopin" in strings["services"]

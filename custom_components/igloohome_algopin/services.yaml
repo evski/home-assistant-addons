@@ -94,8 +94,9 @@ create_daily_algopin:
 revoke_algopin:
   name: Revoke AlgoPIN
   description: >
-    Ask a linked Bridge to delete a PIN over Bluetooth (home API job type 5).
-    If the Bridge is offline the API returns 406 and the code stays on the lock.
+    Ask a linked Bridge to delete a PIN over Bluetooth (home API job type 5,
+    jobData.pin, 4 to 9 digits). HTTP 406 means the Bridge is offline or the
+    lock is not linked to that Bridge, and the code stays on the lock.
     A job id does not guarantee the lock deleted the code. The published rule
     that an unactivated AlgoPIN cannot be deleted when its start is more than
     256 hours after creation is not applied by this integration, because the

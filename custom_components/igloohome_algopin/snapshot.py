@@ -6,6 +6,8 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 
+from .models import is_offered
+
 _DEVICE_ID = re.compile(r"^[A-Za-z0-9]{4,32}$")
 
 
@@ -52,6 +54,17 @@ class AccountSnapshot:
     devices_fresh: bool
 
 
+def entity_locks(snapshot: AccountSnapshot) -> tuple[LockView, ...]:
+    """Selected locks that may receive a device and a diagnostic entity.
+
+    The snapshot already keeps only ids the user chose that support-pins
+    still returns. This drops anything the prefix table or ``type`` denies,
+    so a Bridge, a Fob, or an AlgoPIN-no prefix never becomes an entity.
+    """
+
+    return tuple(lock for lock in snapshot.locks if is_offered(lock.device_id, lock.device_type))
+
+
 def diagnostics_payload(snapshot: AccountSnapshot) -> dict:
     """Diagnostics fields that are safe to download. No PIN, token, or secret."""
 
@@ -68,6 +81,6 @@ def diagnostics_payload(snapshot: AccountSnapshot) -> dict:
                 "table_prefix": lock.table_prefix,
                 "bridge_ids": list(lock.bridge_ids),
             }
-            for lock in snapshot.locks
+            for lock in entity_locks(snapshot)
         ],
     }

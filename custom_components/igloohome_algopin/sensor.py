@@ -12,7 +12,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import BRAND, DOMAIN, VERSION
 from .coordinator import IglooCoordinator
-from .snapshot import AccountSnapshot
+from .snapshot import AccountSnapshot, LockView, entity_locks
 
 SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
@@ -37,7 +37,12 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: IglooCoordinator = hass.data[DOMAIN][entry.entry_id].coordinator
-    async_add_entities(IglooStatusSensor(coordinator, entry, description) for description in SENSORS)
+    locks = entity_locks(coordinator.data) if coordinator.data is not None else ()
+    async_add_entities(
+        IglooStatusSensor(coordinator, entry, description, lock)
+        for lock in locks
+        for description in SENSORS
+    )
 
 
 class IglooStatusSensor(CoordinatorEntity[IglooCoordinator], SensorEntity):
@@ -50,15 +55,19 @@ class IglooStatusSensor(CoordinatorEntity[IglooCoordinator], SensorEntity):
         coordinator: IglooCoordinator,
         entry: ConfigEntry,
         description: SensorEntityDescription,
+        lock: LockView,
     ) -> None:
         super().__init__(coordinator)
         self.entity_description = description
-        self._attr_unique_id = f"{entry.entry_id}-{description.key}"
+        self._attr_unique_id = f"{entry.entry_id}-{lock.device_id}-{description.key}"
+        if lock.device_name == lock.device_id:
+            device_name = lock.device_id
+        else:
+            device_name = f"{lock.device_name} ({lock.device_id})"
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"account:{entry.entry_id}")},
+            identifiers={(DOMAIN, lock.device_id)},
             manufacturer=BRAND,
-            model="igloohome API",
-            name=entry.title,
+            name=device_name,
             sw_version=VERSION,
         )
 

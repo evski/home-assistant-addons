@@ -3,8 +3,25 @@
 from custom_components.igloohome_algopin.models import (
     classify_algopin,
     device_label,
+    is_offered,
     lookup_model,
 )
+
+
+def test_igb4_on_the_table_is_deadbolt_2s_and_algopin_yes():
+    info = lookup_model("IGB4test")
+    assert info is not None
+    assert info.prefix == "IGB4"
+    assert info.name == "Deadbolt 2S Metal Grey"
+    assert info.algopin is True
+    assert info.kind == "lock"
+    assert classify_algopin("IGB4test", "Lock") == "allow"
+    assert is_offered("IGB4test", "Lock") is True
+    label = device_label("42battery", "IGB4test", "Lock")
+    assert "IGB4test" in label
+    assert "42battery" in label
+    assert "prefix IGB4" in label
+    assert "Deadbolt" not in label
 
 
 def test_igb4_prefix_is_allowed_without_naming_a_product():

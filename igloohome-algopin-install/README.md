@@ -19,7 +19,7 @@ Home Assistant 2025.1 or newer.
 2. Restart Home Assistant.
 3. Go to **Settings → Devices & services → Add integration → Igloo AlgoPIN**.
 4. Enter the client ID and client secret from an [individual igloohome API](https://docs.igloohome.co/home/individual-account) client (OAuth client credentials).
-5. Choose devices from the list `GET https://api.igloohome.co/home/devices/support-pins` returns. There is no built-in lock. If that call returns nothing, setup stops.
+5. Choose devices from the list `GET https://api.igloohome.co/home/devices/support-pins` returns. There is no built-in lock. If that call returns nothing, setup stops. Setup does not create an AlgoPIN and does not call the jobs API.
 
 The manual zip has `custom_components/igloohome_algopin` at the zip root plus this README. Unzip it so the folder lands in `/config/custom_components/`.
 
@@ -44,13 +44,15 @@ If you are not sure what the lock is:
 3. The prefix is the leading letters in that id (`IGB4` in the example, or `IGB4A` when the id starts with that longer prefix).
 4. Compare the prefix with the supported-devices table. The setup screen shows the same device id and prefix. It does not show a model name.
 
-Setup then applies only data the API returns and rules the docs publish:
+Setup then applies the [devices reference](https://docs.igloohome.co/home/api_devices) and the supported-devices table.
 
-- The picker is the `support-pins` response. The device object documents `deviceId`, `deviceName`, `type` (Lock, Keypad, Bridge, Fob), and `linkedDevices`. It does not document a model, SKU, or AlgoPIN flag, and none is invented.
+`GET /home/devices/support-pins` returns AlgoPIN-capable devices. The 200 body is the same shape as `GET /home/devices`: `nextCursor` (an empty string ends the list) and `payload`. Each payload object documents `id`, `type` (Lock, Keypad, Bridge, Fob), `deviceId`, `deviceName`, `batteryLevel`, `pairedAt`, `homeId`, and `linkedDevices`. It does not document a model, SKU, or AlgoPIN flag, and none is invented. The picker stores `deviceId` and `deviceName` only. `id`, `batteryLevel`, `pairedAt`, and `homeId` are not written to the config entry, the device registry, or diagnostics, and this integration does not create a battery entity.
+
 - Returned `type` Bridge or Fob is not offered.
 - A device id whose prefix is AlgoPIN no on the published table (including OE1X) is not offered.
-- A prefix the table marks AlgoPIN yes, with `type` missing, Lock, or Keypad, can be chosen. The label says the prefix is on the table. It does not name the product.
+- A prefix the table marks AlgoPIN yes, with `type` missing, Lock, or Keypad, can be chosen. IGB4 is that case: the table names it Deadbolt 2S Metal Grey and marks AlgoPIN yes. The label says the prefix is on the table. It does not write that product name onto the Home Assistant device.
 - Any other prefix stays selectable only because `support-pins` returned it, and the label tells you to read the device id in the account. No model is assigned.
+- A diagnostic entity is created only for a lock that was selected and is still offered on a later `support-pins` refresh. Devices that were not selected do not get an entity.
 
 ## What you can do
 
@@ -97,7 +99,7 @@ The home [Jobs API](https://docs.igloohome.co/home/api_jobs) deletes a PIN with 
 
 Job type 5 is "Delete PIN code". The Bridge delivers it to the lock over Bluetooth. `igloohome-api` 0.1.2 names that constant `BRIDGE_JOB_DELETE_CUSTOM_PIN` and its value is 5. This integration sends that job through `Auth.request` to the home API URL above. It does not call `Api.create_bridge_proxied_job`, because that method still targets `https://api.igloodeveloper.co/igloohome/...`.
 
-If the Bridge is offline the API returns HTTP 406 and the lock is unchanged. There is no documented home-API call that removes an AlgoPIN from a lock the Bridge cannot reach. The mobile SDK `deletePin` also deletes over Bluetooth from a phone in range. This integration cannot do that.
+The jobs reference returns HTTP 406 when the Bridge is offline or the lock is not linked to that Bridge. The lock is unchanged. An empty `linkedDevices` array means this integration will not submit a delete job, because no Bridge id was on the device list. There is no documented home-API call that removes an AlgoPIN from a lock the Bridge cannot reach. The mobile SDK `deletePin` also deletes over Bluetooth from a phone in range. This integration cannot do that.
 
 [AlgoPIN limitations](https://docs.igloohome.co/home/algopin-codes) include a 256-hour rule: an unactivated AlgoPIN whose start is more than 256 hours after it was created cannot be deleted. This integration does not apply that rule. The create response used here is `pin` and `pinId` only, those values are not stored, and no creation timestamp is kept to measure 256 hours. Submitting job type 5 does not mean the lock deleted the code. `GET /home/jobs/{jobId}` is returned as `job_id`, `completed`, and `job_status` only. The separate webhook payload uses job status 3 for "PIN not found". This integration does not poll until the lock confirms deletion.
 
@@ -118,16 +120,18 @@ The AlgoPIN create endpoints do not document an `Idempotency-Key`, and the 0.1.2
 
 HTTP calls are awaited on the event loop.
 
-The built-in [igloohome integration](https://www.home-assistant.io/integrations/igloohome/) documents Bridge lock/unlock and battery updates. Its documentation does not list AlgoPIN. This integration does not add lock, unlock, or battery entities.
+The built-in [igloohome integration](https://www.home-assistant.io/integrations/igloohome/) documents Bridge lock/unlock and battery updates. Its documentation does not list AlgoPIN. This integration does not add lock, unlock, or battery entities. Its diagnostic sensors are attached only to the selected lock.
 
 ## API account
 
 The published individual flow is self-serve client credentials. igloohome's own pricing and support pages describe a 30-day trial and, after that, USD $2 per active smart lock per month. HTTP 402 is the documented billing failure.
 
-This change did not create an API client, did not start a trial, did not enter a card, and did not call igloohome or a lock. No credentials from a real account are in the repository.
+This change did not create an API client, did not start a trial, did not enter a card, and did not call igloohome or a lock. No credentials from a real account are in the repository. It was not copied onto a Home Assistant host.
 
 ## Tests
 
-Unit tests cover UTC conversion, hourly and daily limits, the prefix check (including that a retail name is not a device id), mocked hourly/daily/auth/billing errors, token reuse, and the 0.1.2 module surface. They use a fake HTTP session.
+Unit tests cover UTC conversion, hourly and daily limits, the prefix check (including that a retail name is not a device id and that prefix IGB4 is Deadbolt 2S Metal Grey, AlgoPIN yes), mocked hourly/daily/auth/billing errors, token reuse, and the 0.1.2 module surface. They use a fake HTTP session.
 
-Full Home Assistant config-flow tests were not run. Home Assistant is not installed in the environment that ran the unit tests, and those tests were not marked passed.
+Discovery tests feed a sanitized `support-pins` body with the same keys as the public device object (`nextCursor`, `id`, `type`, `deviceId`, `deviceName`, `batteryLevel`, `pairedAt`, `homeId`, `linkedDevices`). The fixture device id is `IGB4test` and the fixture name is `42battery`. Those tests call `GET /home/devices/support-pins` only, plus the token request. They do not call an AlgoPIN or jobs URL. `id`, `batteryLevel`, `pairedAt`, and `homeId` are not copied onto the device.
+
+Full Home Assistant config-flow tests were not run. Home Assistant is not installed in the environment that ran the unit tests, and those tests were not marked passed. The flow steps in source are the client-credentials step, then a multi-select built from `list_algopin_devices()`. `manifest.json` requires `igloohome-api==0.1.2` and sets `config_flow` to true.

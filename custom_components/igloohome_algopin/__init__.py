@@ -19,7 +19,7 @@ from .api import IglooClient
 from .const import BRAND, DOMAIN, PLATFORMS, VERSION
 from .coordinator import IglooCoordinator
 from .services import async_register_services
-from .snapshot import AccountSnapshot
+from .snapshot import AccountSnapshot, entity_locks
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ def account_identifier(entry_id: str) -> str:
 
 
 def sync_devices(hass: HomeAssistant, entry: ConfigEntry, snapshot: AccountSnapshot) -> None:
-    """Create devices for locks the account list still contains."""
+    """Create a device only for each selected lock that is still offered."""
 
     registry = dr.async_get(hass)
     account = (DOMAIN, account_identifier(entry.entry_id))
@@ -50,14 +50,15 @@ def sync_devices(hass: HomeAssistant, entry: ConfigEntry, snapshot: AccountSnaps
         model="igloohome API",
         sw_version=VERSION,
     )
-    keep = {lock.device_id for lock in snapshot.locks}
+    locks = entity_locks(snapshot)
+    keep = {lock.device_id for lock in locks}
     for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
         for domain, ident in device.identifiers:
             if domain != DOMAIN or ident.startswith("account:"):
                 continue
             if ident not in keep:
                 registry.async_update_device(device.id, remove_config_entry_id=entry.entry_id)
-    for lock in snapshot.locks:
+    for lock in locks:
         if lock.device_name == lock.device_id:
             device_name = lock.device_id
         else:

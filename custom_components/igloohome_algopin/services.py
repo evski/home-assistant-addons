@@ -131,7 +131,8 @@ def _service_error(err: IglooError) -> HomeAssistantError:
         )
     if isinstance(err, IglooApiError) and err.status == 406:
         return HomeAssistantError(
-            "the Bridge could not be contacted, so the PIN was not deleted from the lock. " + str(err)
+            "the bridge job did not delete the PIN, so the lock was unchanged. "
+            "HTTP 406 means the Bridge is offline or the lock is not linked to that Bridge. " + str(err)
         )
     if isinstance(err, IglooApiError) and err.status == 418:
         return HomeAssistantError("this device SKU does not support AlgoPIN")
