@@ -94,3 +94,9 @@ MIT License - See [LICENSE](argon-oled-addon/LICENSE) for details
 
 - Argon ONE OLED Display: Based on setup scripts from [Argon40](https://www.argon40.com/)
 - Argon ONE Active Cooling: Based on [Jeff Curless's argoneon scripts](https://github.com/JeffCurless/argoneon) and [Argon40](https://www.argon40.com/)
+
+## Igloo AlgoPIN custom integration
+
+Hourly and daily igloohome AlgoPIN guest codes. Install by copying `custom_components/igloohome_algopin` to `/config/custom_components/igloohome_algopin` and restarting Home Assistant. The add-on store entry for this repository does not install that folder.
+
+A retail lock name is not used as a device model. Compare the device id prefix from the igloohome account with the supported-devices table. Install steps and limits: [igloohome-algopin-install/README.md](igloohome-algopin-install/README.md).

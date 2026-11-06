@@ -1,0 +1,86 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect the igloohome API",
+        "description": "Use the client ID and client secret from an individual igloohome API client (client credentials). The next step lists locks returned by the account. The lock itself is not contacted.",
+        "data": {
+          "client_id": "Client ID",
+          "client_secret": "Client secret"
+        }
+      },
+      "locks": {
+        "title": "Choose locks",
+        "description": "These devices were returned by GET /home/devices/support-pins. The label shows the account device name, the device id, and its prefix. It does not name a product model. Battery, pairing time, the internal id, and home id from that response are not stored. If you are not sure which lock this is, open the igloohome app or API portal, read the device id (the Bluetooth name, for example IGB403fe3b9d), and compare the prefix with https://docs.igloohome.co/home/supported-devices. Prefix IGB4 on that table is Deadbolt 2S Metal Grey and AlgoPIN yes. A retail name such as Smart Deadbolt 4 Metal Grey is not a row on that page.",
+        "data": {
+          "locks": "Locks"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reconnect the igloohome API",
+        "description": "The saved client secret was rejected. Enter a new secret for the same client ID.",
+        "data": {
+          "client_secret": "Client secret"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "igloohome rejected the client ID or client secret.",
+      "cannot_connect": "Home Assistant could not reach the igloohome API.",
+      "payment_required": "igloohome returned HTTP 402. After the trial the published price is $2 per active lock per month.",
+      "no_devices": "The account returned no AlgoPIN-capable devices.",
+      "select_lock": "Choose at least one lock from the list.",
+      "unknown": "The igloohome API returned an unexpected error."
+    },
+    "abort": {
+      "already_configured": "This igloohome API client is already configured.",
+      "reauth_successful": "Reconnected to the igloohome API.",
+      "no_devices": "The account returned no AlgoPIN-capable devices."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Choose locks",
+        "description": "The list was loaded again from GET /home/devices/support-pins. Labels show the account device name, the device id, and the prefix, not a product model. Battery, pairing time, the internal id, and home id are not stored. Compare the device id in the igloohome account with https://docs.igloohome.co/home/supported-devices if the prefix is unfamiliar. Prefix IGB4 is Deadbolt 2S Metal Grey, AlgoPIN yes. Smart Deadbolt 4 Metal Grey is not a row on that page.",
+        "data": {
+          "locks": "Locks"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "igloohome rejected the saved credentials. Use Reconfigure / reauthentication.",
+      "cannot_connect": "Home Assistant could not reach the igloohome API.",
+      "payment_required": "igloohome returned HTTP 402. After the trial the published price is $2 per active lock per month.",
+      "select_lock": "Choose at least one lock from the list.",
+      "unknown": "The igloohome API returned an unexpected error."
+    },
+    "abort": {
+      "no_devices": "The account returned no AlgoPIN-capable devices."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "api_status": {
+        "name": "API status"
+      },
+      "access_ends": {
+        "name": "API access ends"
+      }
+    }
+  },
+  "services": {
+    "create_hourly_algopin": {
+      "name": "Create hourly AlgoPIN",
+      "description": "Create an hourly AlgoPIN in the igloohome cloud. No Bridge is used and no PIN algorithm runs locally. Times are in the Home Assistant timezone and are converted to UTC. The PIN is returned only in the service response."
+    },
+    "create_daily_algopin": {
+      "name": "Create daily AlgoPIN",
+      "description": "Create a daily AlgoPIN in the igloohome cloud. No Bridge is used and no PIN algorithm runs locally. Times are in the Home Assistant timezone and are converted to UTC. The PIN is returned only in the service response."
+    },
+    "revoke_algopin": {
+      "name": "Revoke AlgoPIN",
+      "description": "Ask a linked Bridge to delete a PIN over Bluetooth (job type 5, jobData.pin). HTTP 406 means the Bridge is offline or the lock is not linked, and the code stays. A job id does not guarantee deletion. The 256-hour limit in the igloohome docs is not applied here. The PIN is not stored."
+    }
+  }
+}
