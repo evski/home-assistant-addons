@@ -11,7 +11,7 @@
       },
       "locks": {
         "title": "Choose locks",
-        "description": "These locks were returned by the AlgoPIN device list. The brand is igloohome. The model is the official supported-devices name when the device id prefix matches.",
+        "description": "These devices were returned by GET /home/devices/support-pins. The label shows the device id and its prefix. It does not name a product model. If you are not sure which lock this is, open the igloohome app or API portal, read the device id (the Bluetooth name, for example IGB403fe3b9d), and compare the prefix with https://docs.igloohome.co/home/supported-devices. A retail name such as Smart Deadbolt 4 Metal Grey is not a row on that page.",
         "data": {
           "locks": "Locks"
         }
@@ -42,7 +42,7 @@
     "step": {
       "init": {
         "title": "Choose locks",
-        "description": "The list was loaded again from the account. Only devices in that response can be saved.",
+        "description": "The list was loaded again from GET /home/devices/support-pins. Labels show the device id and prefix, not a product model. Compare the device id in the igloohome account with https://docs.igloohome.co/home/supported-devices if the prefix is unfamiliar. Smart Deadbolt 4 Metal Grey is not a row on that page.",
         "data": {
           "locks": "Locks"
         }
@@ -72,15 +72,15 @@
   "services": {
     "create_hourly_algopin": {
       "name": "Create hourly AlgoPIN",
-      "description": "Create an hourly AlgoPIN in the igloohome cloud. Times are in the Home Assistant timezone and are converted to UTC. The PIN is returned only in the service response."
+      "description": "Create an hourly AlgoPIN in the igloohome cloud. No Bridge is used and no PIN algorithm runs locally. Times are in the Home Assistant timezone and are converted to UTC. The PIN is returned only in the service response."
     },
     "create_daily_algopin": {
       "name": "Create daily AlgoPIN",
-      "description": "Create a daily AlgoPIN in the igloohome cloud. Times are in the Home Assistant timezone and are converted to UTC. The PIN is returned only in the service response."
+      "description": "Create a daily AlgoPIN in the igloohome cloud. No Bridge is used and no PIN algorithm runs locally. Times are in the Home Assistant timezone and are converted to UTC. The PIN is returned only in the service response."
     },
     "revoke_algopin": {
       "name": "Revoke AlgoPIN",
-      "description": "Ask a linked Bridge to delete a PIN over Bluetooth (job type 5). This does not delete a code from a lock the Bridge cannot reach. The PIN is not stored."
+      "description": "Ask a linked Bridge to delete a PIN over Bluetooth (job type 5). If the Bridge cannot reach the lock, the code stays. A job id does not guarantee deletion. The 256-hour limit in the igloohome docs is not applied here. The PIN is not stored."
     }
   }
 }

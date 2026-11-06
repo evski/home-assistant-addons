@@ -1,13 +1,16 @@
-"""Official device-id prefixes from the igloohome home API.
+"""Prefix check against the published igloohome supported-devices table.
 
 Source: https://docs.igloohome.co/home/supported-devices
 Table last updated 15 October 2026.
 
-The Metal Grey deadbolt prefix on that table is IGB4, named
-"Deadbolt 2S Metal Grey", and AlgoPIN is Yes. OE1X is "Retrofit Lock"
-and AlgoPIN is No. There is no separate "Smart Deadbolt 4" row. A device
-id that starts with IGB4 and not IGB4A is the Metal Grey / Deadbolt 2S
-model. This module does not invent a model name for an unknown prefix.
+The table is used only to accept or reject a device id prefix, together
+with the ``type`` value the device list actually returns (Lock, Keypad,
+Bridge, Fob). It is not a map from a retail product name to a lock.
+
+IGB4 on that table is "Deadbolt 2S Metal Grey" and AlgoPIN is yes.
+OE1X is "Retrofit Lock" and AlgoPIN is no. "Smart Deadbolt 4 Metal Grey"
+is not a row. This module does not treat that retail text as a device id,
+and it does not assign a model name to a Home Assistant device.
 """
 
 from __future__ import annotations
@@ -71,20 +74,53 @@ def lookup_model(device_id: str) -> ModelInfo | None:
     return None
 
 
-def model_name(device_id: str) -> str | None:
-    """Official model name after a device id has been read. Unknown prefixes stay blank."""
+# ``type`` values documented on GET /home/devices: Lock, Keypad, Bridge, Fob.
 
+
+def classify_algopin(device_id: str, device_type: str | None) -> str:
+    """Return ``allow``, ``deny``, or ``unconfirmed``.
+
+    ``device_type`` is the API ``type`` field as returned. An empty string
+    means the field was absent. A retail product name is not a type and is
+    not accepted here.
+
+    * Bridge and Fob are documented device types and are not AlgoPIN devices.
+    * A prefix on the supported-devices table with AlgoPIN no is denied.
+    * A prefix on that table with AlgoPIN yes is allowed when ``type`` is
+      missing, Lock, or Keypad.
+    * Any other prefix stays ``unconfirmed``. The caller may still show it
+      when ``GET /home/devices/support-pins`` returned it, without naming a model.
+    """
+
+    reported = (device_type or "").strip().lower()
+    if reported in {"bridge", "fob"}:
+        return "deny"
     info = lookup_model(device_id)
-    if info is None:
-        return None
-    return info.name
+    if info is not None and (not info.algopin or info.kind in {"bridge", "fob"}):
+        return "deny"
+    if info is not None and info.algopin:
+        if reported in {"", "lock", "keypad"}:
+            return "allow"
+        return "unconfirmed"
+    return "unconfirmed"
 
 
-def device_label(device_name: str, device_id: str) -> str:
-    """Label for a lock the API already returned and the user may choose."""
+def device_label(device_name: str, device_id: str, device_type: str = "") -> str:
+    """Picker label. Uses the account name and device id, not a product model."""
 
     name = " ".join((device_name or device_id).split())
-    model = model_name(device_id)
-    if model:
-        return f"{name} — igloohome {model}"
-    return f"{name} — igloohome"
+    status = classify_algopin(device_id, device_type)
+    info = lookup_model(device_id)
+    if status == "deny":
+        shown = info.prefix if info else (device_id[:4] if device_id else "")
+        return f"{name} — {device_id} — prefix {shown} is not offered for AlgoPIN"
+    if status == "allow" and info is not None:
+        return (
+            f"{name} — {device_id} — prefix {info.prefix} is AlgoPIN yes on the "
+            "supported-devices table. Confirm this device id in the igloohome account."
+        )
+    leading = device_id[:4] if device_id else ""
+    return (
+        f"{name} — {device_id} — leading characters {leading} are not a published prefix. "
+        "Read the device id in the igloohome account before use."
+    )

@@ -3,7 +3,12 @@
 The package is async (aiohttp). Callers await it on the event loop. Nothing
 here performs synchronous HTTP, so these coroutines stay on the event loop.
 
-What 0.1.2 actually ships (verified from the sdist, not the README alone):
+What 0.1.2 actually ships was read from the sdist ``igloohome_api/__init__.py``,
+not from the PyPI description. That description only shows ``get_devices()``
+and does not document AlgoPIN. The module itself has no hourly or daily
+AlgoPIN method. The scopes string does mention ``algopin-hourly`` and
+``algopin-daily``. AlgoPIN calls below are therefore plain requests to the
+documented home API, using ``Auth.request`` for the bearer token.
 
 * ``Auth`` posts client credentials to ``https://auth.igloohome.co/oauth2/token``.
   The default scope includes ``igloohomeapi/algopin-hourly`` and
@@ -43,7 +48,7 @@ from igloohome_api import (
 )
 
 from .const import API_ROOT, TOKEN_SKEW
-from .models import lookup_model
+from .models import classify_algopin, lookup_model
 from .snapshot import AccountSnapshot, LockView
 
 _LOGGER = logging.getLogger(__name__)
@@ -366,7 +371,11 @@ class IglooClient:
         end_api: str,
         variance: int,
     ) -> AlgoPin:
-        """POST /home/devices/{id}/algopin/hourly. Does not contact the lock."""
+        """POST /home/devices/{id}/algopin/hourly.
+
+        The igloohome cloud returns the PIN. This client does not run a local
+        algorithm and does not contact the lock or a Bridge.
+        """
 
         return await self._create("hourly", device_id, access_name, start_api, end_api, variance)
 
@@ -388,6 +397,12 @@ class IglooClient:
         This is job type 5 (``BRIDGE_JOB_DELETE_CUSTOM_PIN``). The cloud does
         not remove the code from a lock the Bridge cannot reach. HTTP 406
         means the Bridge was offline and the lock was not changed.
+
+        The published 256-hour rule (an unactivated AlgoPIN whose start is
+        more than 256 hours after creation cannot be deleted) is not applied
+        here. Create responses do not include a stored creation time, and
+        this client does not keep PINs. Submitting the job does not guarantee
+        that the lock deleted the code.
         """
 
         if BRIDGE_JOB_DELETE_CUSTOM_PIN != 5:
@@ -441,12 +456,11 @@ class IglooClient:
         algopin_devices = await self.list_algopin_devices()
         all_devices = await self.list_devices()
         by_id = {device.device_id: device for device in algopin_devices}
-        eligible = []
-        for device in algopin_devices:
-            info = lookup_model(device.device_id)
-            if info is not None and not info.algopin:
-                continue
-            eligible.append(device)
+        eligible = [
+            device
+            for device in algopin_devices
+            if classify_algopin(device.device_id, device.device_type) != "deny"
+        ]
         bridges = bridge_ids_by_lock(eligible, all_devices)
         locks: list[LockView] = []
         for device_id in sorted(chosen_ids):
@@ -458,7 +472,8 @@ class IglooClient:
                 LockView(
                     device_id=device.device_id,
                     device_name=device.device_name,
-                    model=info.name if info else None,
+                    device_type=device.device_type,
+                    table_prefix=info.prefix if info and info.algopin else None,
                     bridge_ids=bridges.get(device.device_id, ()),
                 )
             )

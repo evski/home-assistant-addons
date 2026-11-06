@@ -58,17 +58,17 @@ def sync_devices(hass: HomeAssistant, entry: ConfigEntry, snapshot: AccountSnaps
             if ident not in keep:
                 registry.async_update_device(device.id, remove_config_entry_id=entry.entry_id)
     for lock in snapshot.locks:
-        kwargs: dict = {}
-        if lock.model:
-            kwargs["model"] = lock.model
+        if lock.device_name == lock.device_id:
+            device_name = lock.device_id
+        else:
+            device_name = f"{lock.device_name} ({lock.device_id})"
         registry.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, lock.device_id)},
             manufacturer=BRAND,
-            name=lock.device_name,
+            name=device_name,
             sw_version=VERSION,
             via_device=account,
-            **kwargs,
         )
 
 

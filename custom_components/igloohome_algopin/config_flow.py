@@ -22,7 +22,7 @@ from .api import (
     IglooPaymentError,
 )
 from .const import CONF_CLIENT_ID, CONF_CLIENT_SECRET, CONF_LOCKS, DOMAIN
-from .models import device_label, lookup_model
+from .models import classify_algopin, device_label
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,19 +36,26 @@ def _client(hass, client_id: str, client_secret: str) -> IglooClient:
 
 
 def _selectable(devices: list[Device]) -> list[Device]:
-    """Drop SKUs the official table marks as AlgoPIN No, if the API still returns them."""
+    """Keep devices the returned fields do not rule out.
 
-    kept: list[Device] = []
-    for device in devices:
-        info = lookup_model(device.device_id)
-        if info is not None and not info.algopin:
-            continue
-        kept.append(device)
-    return kept
+    ``GET /home/devices/support-pins`` is the list the caller already fetched.
+    A device is dropped when its returned ``type`` is Bridge or Fob, or when
+    its device id prefix is AlgoPIN no on the supported-devices table.
+    Unknown prefixes stay in the list as unconfirmed. No model name is added.
+    """
+
+    return [
+        device
+        for device in devices
+        if classify_algopin(device.device_id, device.device_type) != "deny"
+    ]
 
 
 def _lock_schema(devices: list[Device], default: list[str] | None = None) -> vol.Schema:
-    options = {device.device_id: device_label(device.device_name, device.device_id) for device in devices}
+    options = {
+        device.device_id: device_label(device.device_name, device.device_id, device.device_type)
+        for device in devices
+    }
     key = vol.Required(CONF_LOCKS, default=default) if default else vol.Required(CONF_LOCKS)
     return vol.Schema({key: cv.multi_select(options)})
 

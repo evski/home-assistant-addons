@@ -1,10 +1,10 @@
 create_hourly_algopin:
   name: Create hourly AlgoPIN
   description: >
-    Create an hourly AlgoPIN (1 to 672 hours) in the igloohome cloud.
-    Start and end are in the Home Assistant timezone and are converted to UTC
-    hour boundaries. The lock is not contacted. The PIN is returned only in
-    the service response and is not stored.
+    Create an hourly AlgoPIN in the igloohome cloud. No Bridge is used and no
+    PIN algorithm runs locally. Start and end are in the Home Assistant
+    timezone and are converted to UTC hour boundaries. The PIN is returned
+    only in the service response and is not stored.
   fields:
     device_id:
       name: Lock
@@ -94,12 +94,12 @@ create_daily_algopin:
 revoke_algopin:
   name: Revoke AlgoPIN
   description: >
-    Ask a Bridge returned by the account device list to delete a PIN.
-    The home API does this with bridge job type 5. The Bridge delivers the
-    job to the lock over Bluetooth. If the Bridge is offline the API returns
-    406 and the code stays on the lock. This service does not store the PIN.
-    An unactivated AlgoPIN whose start is more than 256 hours after it was
-    created cannot be deleted (the documented 256 rule).
+    Ask a linked Bridge to delete a PIN over Bluetooth (home API job type 5).
+    If the Bridge is offline the API returns 406 and the code stays on the lock.
+    A job id does not guarantee the lock deleted the code. The published rule
+    that an unactivated AlgoPIN cannot be deleted when its start is more than
+    256 hours after creation is not applied by this integration, because the
+    create response is not stored. The PIN is not stored.
   fields:
     device_id:
       name: Lock

@@ -97,6 +97,6 @@ MIT License - See [LICENSE](argon-oled-addon/LICENSE) for details
 
 ## Igloo AlgoPIN custom integration
 
-Hourly and daily igloohome AlgoPIN guest codes. This is a Home Assistant custom integration, not an add-on. An add-on cannot copy it into the host `custom_components` directory, and this add-on repository is not a HACS integration repository.
+Hourly and daily igloohome AlgoPIN guest codes. Install by copying `custom_components/igloohome_algopin` to `/config/custom_components/igloohome_algopin` and restarting Home Assistant. The add-on store entry for this repository does not install that folder.
 
-Manual install and limits: [igloohome-algopin-install/README.md](igloohome-algopin-install/README.md).
+A retail lock name is not used as a device model. Compare the device id prefix from the igloohome account with the supported-devices table. Install steps and limits: [igloohome-algopin-install/README.md](igloohome-algopin-install/README.md).

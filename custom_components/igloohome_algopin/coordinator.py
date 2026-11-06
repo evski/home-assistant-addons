@@ -10,7 +10,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import IglooApiError, IglooAuthError, IglooClient, IglooConnectionError, IglooPaymentError
 from .const import DOMAIN, POLL_INTERVAL
-from .models import model_name
+from .models import classify_algopin, lookup_model
 from .snapshot import AccountSnapshot, LockView, parse_chosen
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,10 +42,16 @@ class IglooCoordinator(DataUpdateCoordinator[AccountSnapshot]):
                     LockView(
                         device_id=device_id,
                         device_name=name,
-                        model=model_name(device_id),
+                        device_type="",
+                        table_prefix=(
+                            info.prefix
+                            if (info := lookup_model(device_id)) is not None and info.algopin
+                            else None
+                        ),
                         bridge_ids=(),
                     )
                     for device_id, name in parse_chosen(dict(self.entry.options))
+                    if classify_algopin(device_id, "") != "deny"
                 )
             return AccountSnapshot(
                 status="payment_required",

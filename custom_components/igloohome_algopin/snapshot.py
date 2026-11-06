@@ -36,7 +36,8 @@ class LockView:
 
     device_id: str
     device_name: str
-    model: str | None
+    device_type: str
+    table_prefix: str | None
     bridge_ids: tuple[str, ...]
 
 
@@ -63,7 +64,8 @@ def diagnostics_payload(snapshot: AccountSnapshot) -> dict:
             {
                 "device_id": lock.device_id,
                 "device_name": lock.device_name,
-                "model": lock.model,
+                "device_type": lock.device_type,
+                "table_prefix": lock.table_prefix,
                 "bridge_ids": list(lock.bridge_ids),
             }
             for lock in snapshot.locks

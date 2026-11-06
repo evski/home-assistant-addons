@@ -2,36 +2,62 @@
 
 Home Assistant custom integration that creates hourly and daily [AlgoPIN](https://docs.igloohome.co/home/algopin-codes) guest codes for an igloohome account.
 
-This is an integration. It is not a Home Assistant add-on. An add-on runs in its own container and cannot install files into the host `/config/custom_components` directory. Nothing in this repository registers the integration as an add-on, and nothing writes it into Home Assistant for you.
+There are two different installs, and only one of them applies here.
 
-## Install
+| What | Where it lives | How it is installed |
+| --- | --- | --- |
+| This integration | `custom_components/igloohome_algopin` | Copy that folder to `/config/custom_components/igloohome_algopin` and restart Home Assistant |
+| The add-ons in this same git repository | `argon-oled-addon/`, `active-heating-manager-addon/` | Add-on store, from `repository.json` |
+
+An add-on runs in its own container. It cannot write `/config/custom_components` on the host. Adding this git URL as an add-on repository does not install Igloo AlgoPIN. There is no add-on folder for it, and `repository.json` does not list it.
+
+## Install the integration
 
 Home Assistant 2025.1 or newer.
 
-1. Copy the folder `custom_components/igloohome_algopin` to `/config/custom_components/igloohome_algopin`. The path has to be exactly that. Restarting Home Assistant does not create it.
+1. Copy `custom_components/igloohome_algopin` to `/config/custom_components/igloohome_algopin`. Home Assistant looks for `/config/custom_components/igloohome_algopin/manifest.json`.
 2. Restart Home Assistant.
 3. Go to **Settings → Devices & services → Add integration → Igloo AlgoPIN**.
 4. Enter the client ID and client secret from an [individual igloohome API](https://docs.igloohome.co/home/individual-account) client (OAuth client credentials).
-5. Choose one or more locks from the list the account returns. The list is `GET https://api.igloohome.co/home/devices/support-pins`. There is no built-in or sample lock. If that call returns nothing, setup stops.
+5. Choose devices from the list `GET https://api.igloohome.co/home/devices/support-pins` returns. There is no built-in lock. If that call returns nothing, setup stops.
 
-A zip of this folder, with `custom_components/igloohome_algopin` at the zip root, is the manual install artifact. Unzip it so Home Assistant sees `/config/custom_components/igloohome_algopin/manifest.json`.
+The manual zip has `custom_components/igloohome_algopin` at the zip root plus this README. Unzip it so the folder lands in `/config/custom_components/`.
 
-Credentials are stored in the config entry, which is the normal Home Assistant store for integration secrets. Generated PINs are not stored there.
+Credentials are stored in the config entry. Generated PINs are not.
 
 ## Not a HACS install from this repository
 
-`evski/home-assistant-addons` is a Home Assistant **add-on** repository (`repository.json`). Adding that URL in HACS, or in the add-on store, does not install this integration.
+`evski/home-assistant-addons` is an add-on repository. It has no root `hacs.json`. HACS will not install this integration from that URL.
 
-HACS installs a custom integration only from a repository whose root is an integration repository (its own `hacs.json`, and `custom_components/<domain>` on the default branch or in a release zip). This add-on repository does not have a root `hacs.json` on purpose. `igloohome-algopin-install/hacs.json` is a starting file for a **separate** integration repository. It does nothing while it sits in this folder.
+`igloohome-algopin-install/hacs.json` is a file you would put at the root of a **different** repository whose only job is this integration. It does nothing in this add-on repository.
 
-Do not describe this as a one-click HACS install.
+## Check the device id before you rely on a retail name
+
+The supported-devices page is <https://docs.igloohome.co/home/supported-devices> (table last updated 15 October 2026).
+
+That page lists prefix **IGB4** as **Deadbolt 2S Metal Grey**, AlgoPIN yes, and prefix **OE1X** as **Retrofit Lock**, AlgoPIN no. It does not list a retail description "Smart Deadbolt 4 Metal Grey". This integration does not treat that retail text as a device, and it does not write a product model onto the Home Assistant device.
+
+If you are not sure what the lock is:
+
+1. Open the lock in the igloohome app, or the device list in the igloohome API portal.
+2. Read the device id. It is the Bluetooth name, 12 characters, such as `IGB403fe3b9d`.
+3. The prefix is the leading letters in that id (`IGB4` in the example, or `IGB4A` when the id starts with that longer prefix).
+4. Compare the prefix with the supported-devices table. The setup screen shows the same device id and prefix. It does not show a model name.
+
+Setup then applies only data the API returns and rules the docs publish:
+
+- The picker is the `support-pins` response. The device object documents `deviceId`, `deviceName`, `type` (Lock, Keypad, Bridge, Fob), and `linkedDevices`. It does not document a model, SKU, or AlgoPIN flag, and none is invented.
+- Returned `type` Bridge or Fob is not offered.
+- A device id whose prefix is AlgoPIN no on the published table (including OE1X) is not offered.
+- A prefix the table marks AlgoPIN yes, with `type` missing, Lock, or Keypad, can be chosen. The label says the prefix is on the table. It does not name the product.
+- Any other prefix stays selectable only because `support-pins` returned it, and the label tells you to read the device id in the account. No model is assigned.
 
 ## What you can do
 
-- Create an hourly AlgoPIN (1 to 672 hours, variance 1–3).
-- Create a daily AlgoPIN (29 to 367 whole days, variance 1–3).
-- Ask a Bridge that the account device list already linked to the lock to delete a PIN.
-- See API billing status and the `endsAt` time from `GET /home/server-health`. Those sensors do not contain a PIN.
+- Create an hourly AlgoPIN (1 to 672 hours, variance 1–3). The igloohome cloud creates it. No Bridge is used. No PIN algorithm runs in Home Assistant.
+- Create a daily AlgoPIN (29 to 367 whole days, variance 1–3), the same way.
+- Ask a Bridge that the account device list already linked to submit delete job type 5.
+- See API status and `endsAt` from `GET /home/server-health`. Those sensors do not contain a PIN.
 
 The PIN comes back only as the service response (`SupportsResponse.ONLY`):
 
@@ -43,13 +69,13 @@ The PIN comes back only as the service response (`SupportsResponse.ONLY`):
 
 The integration does not write the PIN to an entity state, the logbook, a Home Assistant event, or its own Store. It does not email the PIN.
 
-Home Assistant still keeps the service response in the trace of the script or automation that called the service. Treat that trace as sensitive. This integration cannot stop core from recording the caller's response.
+Home Assistant still keeps the service response in the trace of the script or automation that called the service. Treat that trace as sensitive.
 
 ## Times
 
 Enter start and end in the Home Assistant timezone. Naive values are read in that timezone. The integration converts the instant to UTC and sends `YYYY-MM-DDTHH:00:00+00:00`.
 
-The [hourly](https://docs.igloohome.co/home/api_access) and [daily](https://docs.igloohome.co/home/api_access) endpoints accept hour resolution only. A converted time that is not on a UTC hour is rejected, not rounded. Hourly length must be 1 to 672 hours, and the start may be at most 1 hour in the past. Daily length must be 29 to 367 whole UTC days, and the UTC hour of the start and the end must match (the daily reference requires those hours to match).
+The [hourly](https://docs.igloohome.co/home/api_access) and [daily](https://docs.igloohome.co/home/api_access) endpoints accept hour resolution only. A converted time that is not on a UTC hour is rejected, not rounded. Hourly length must be 1 to 672 hours, and the start may be at most 1 hour in the past. Daily length must be 29 to 367 whole UTC days, and the UTC hour of the start and the end must match.
 
 A window that crosses a daylight-saving change can fail the daily check even when both local clock hours match, because the UTC hours then differ. Zones whose offset is not a whole hour (for example Asia/Kolkata, UTC+05:30) need a local time that lands on a UTC hour. `14:00` in Kolkata is `08:30Z` and is rejected. `14:30` is `09:00Z` and is a valid hourly boundary.
 
@@ -57,9 +83,9 @@ Example, Europe/London in July (BST, UTC+1): local `2026-07-01 15:00` through `2
 
 ## Cloud generate versus Bridge delete
 
-Creating an hourly or daily AlgoPIN is a cloud request. The lock does not need Wi-Fi, and a Bridge is not required. The guest types the PIN on the keypad. The lock checks it offline. That is the behaviour described in [AlgoPIN codes](https://docs.igloohome.co/home/algopin-codes).
+Creating an hourly or daily AlgoPIN is a request to `POST /home/devices/{deviceId}/algopin/hourly` or `.../algopin/daily`. The cloud returns `pin` and `pinId`. The lock is not on that call, a Bridge is not required, and this integration does not compute the PIN itself. The guest types the PIN on the keypad. The lock checks it offline. That split is what [AlgoPIN codes](https://docs.igloohome.co/home/algopin-codes) describes.
 
-Deleting a PIN is not part of that cloud call, and it does not happen by itself.
+Deleting a PIN is a different call, and it is not guaranteed.
 
 The home [Jobs API](https://docs.igloohome.co/home/api_jobs) deletes a PIN with a Bridge-proxied job:
 
@@ -69,50 +95,39 @@ The home [Jobs API](https://docs.igloohome.co/home/api_jobs) deletes a PIN with 
 { "jobType": 5, "jobData": { "pin": "..." } }
 ```
 
-Job type 5 is "Delete PIN code". The Bridge delivers it to the lock over Bluetooth. `igloohome-api` 0.1.2 names that constant `BRIDGE_JOB_DELETE_CUSTOM_PIN` and its value is 5. This integration sends that job through `Auth.request` to the home API URL above.
+Job type 5 is "Delete PIN code". The Bridge delivers it to the lock over Bluetooth. `igloohome-api` 0.1.2 names that constant `BRIDGE_JOB_DELETE_CUSTOM_PIN` and its value is 5. This integration sends that job through `Auth.request` to the home API URL above. It does not call `Api.create_bridge_proxied_job`, because that method still targets `https://api.igloodeveloper.co/igloohome/...`.
 
-If the Bridge is offline the API returns HTTP 406 (`Unable to contact bridge as it appears to be offline`) and the lock is unchanged. There is no documented home-API call that removes an AlgoPIN from a lock the Bridge cannot reach. The mobile SDK `deletePin` also deletes over Bluetooth from a phone in range. This integration cannot do that.
+If the Bridge is offline the API returns HTTP 406 and the lock is unchanged. There is no documented home-API call that removes an AlgoPIN from a lock the Bridge cannot reach. The mobile SDK `deletePin` also deletes over Bluetooth from a phone in range. This integration cannot do that.
 
-An unactivated AlgoPIN whose start is more than 256 hours after it was created cannot be deleted (the documented 256 rule). The lock's whitelist and blacklist hold at most 199 PIN codes (the 199 rule). Codes valid for more than 24 hours must be used once on the lock within the first 24 hours of validity or they do not activate.
+[AlgoPIN limitations](https://docs.igloohome.co/home/algopin-codes) include a 256-hour rule: an unactivated AlgoPIN whose start is more than 256 hours after it was created cannot be deleted. This integration does not apply that rule. The create response used here is `pin` and `pinId` only, those values are not stored, and no creation timestamp is kept to measure 256 hours. Submitting job type 5 does not mean the lock deleted the code. `GET /home/jobs/{jobId}` is returned as `job_id`, `completed`, and `job_status` only. The separate webhook payload uses job status 3 for "PIN not found". This integration does not poll until the lock confirms deletion.
 
-`GET /home/jobs/{jobId}` reports the bridge job (`completed`, `jobStatus`). The separate webhook payload uses job status 3 for "PIN not found". This integration returns the job id and those status fields. It does not treat "job accepted" as "PIN removed from the lock", and it does not poll until the lock confirms deletion.
+The same limitations page also describes a 199-code capacity and a 24-hour activation window for codes longer than 24 hours. Those are igloohome rules. This integration does not enforce them locally.
 
 `DELETE /home/pass/{id}` revokes an iglooKey pass, not an AlgoPIN. This integration does not call it.
 
-The AlgoPIN create endpoints do not document an `Idempotency-Key`, and `igloohome-api` 0.1.2 has no idempotent AlgoPIN method. A repeat create is a new POST. Variance 1, 2, and 3 are the extra codes the hourly and daily endpoints allow for one window. This integration does not invent an idempotency key.
-
-## Lock model
-
-The official supported-devices table (home API, last updated 15 October 2026) is the model list: <https://docs.igloohome.co/home/supported-devices>.
-
-| Prefix | Official name | AlgoPIN |
-| --- | --- | --- |
-| IGB4 | Deadbolt 2S Metal Grey | Yes |
-| OE1X | Retrofit Lock | No |
-
-There is no row named "Smart Deadbolt 4". The Metal Grey deadbolt prefix on that table is **IGB4**, officially **Deadbolt 2S Metal Grey**, and AlgoPIN is yes. The example device id `IGB403fe3b9d` is labelled "Deadbolt 2S" on the same page. **OE1X Retrofit Lock does not support AlgoPIN.** A device id is only given that model name after it has been read from the account and you choose it. Unknown prefixes stay blank rather than being guessed. The brand shown is igloohome.
-
-The built-in [igloohome integration](https://www.home-assistant.io/integrations/igloohome/) documents Bridge lock/unlock and battery updates. It does not document AlgoPIN. This integration does not add lock, unlock, or battery entities, so it does not shadow that one.
+The AlgoPIN create endpoints do not document an `Idempotency-Key`, and the 0.1.2 source has no idempotent AlgoPIN method. A repeat create is a new POST. This integration does not add an idempotency key.
 
 ## Python package
 
-`igloohome-api` **0.1.2** (PyPI, 19 July 2026) is the pinned release. Verified from that sdist:
+`igloohome-api` **0.1.2** (PyPI, 19 July 2026) is the pinned release. The PyPI description only demonstrates `get_devices()` and does not document AlgoPIN. The sdist module `igloohome_api/__init__.py` was read directly:
 
-- `Auth` is async and posts client credentials to `https://auth.igloohome.co/oauth2/token`. The default scope includes `igloohomeapi/algopin-hourly` and `igloohomeapi/algopin-daily`.
-- Public `Api` methods are `get_devices`, `get_device_info`, `create_bridge_proxied_job`, and `get_job_status`. There is no hourly or daily AlgoPIN method.
-- Those `Api` methods still call `https://api.igloodeveloper.co/igloohome/...`. The current home reference uses `https://api.igloohome.co/home/...`.
+- `Auth` is async and posts client credentials to `https://auth.igloohome.co/oauth2/token`. The default scope string includes `igloohomeapi/algopin-hourly` and `igloohomeapi/algopin-daily`.
+- `Api` methods are `get_devices`, `get_device_info`, `create_bridge_proxied_job`, and `get_job_status`. There is no AlgoPIN method to call.
+- Those `Api` methods still build `https://api.igloodeveloper.co/igloohome/...`. The current home reference uses `https://api.igloohome.co/home/...`, which is what this integration calls via `Auth.request`.
 - `is_access_token_valid` does not return true, so this integration reads the JWT `exp` claim and refreshes about a minute early. Documented client-credentials tokens last 86400 seconds and have no refresh token.
 
-HTTP calls are awaited. They are not run in an executor.
+HTTP calls are awaited on the event loop.
 
-## API account, price, and what this change did not do
+The built-in [igloohome integration](https://www.home-assistant.io/integrations/igloohome/) documents Bridge lock/unlock and battery updates. Its documentation does not list AlgoPIN. This integration does not add lock, unlock, or battery entities.
 
-The published individual flow is self-serve client credentials, with a 30-day trial. After the trial, igloohome's pricing page and support article charge **USD $2 per active smart lock per month**, billed in arrears. HTTP 402 is the billing failure (`30 days igloohome API trial has ended` is the documented example).
+## API account
 
-This repository change did not create an iglooaccess client, did not start a trial, did not enter a card, and did not submit an approval request. No live lock and no live API account were called while building it. If a particular account is still waiting on igloohome to enable API access, that step is still outstanding.
+The published individual flow is self-serve client credentials. igloohome's own pricing and support pages describe a 30-day trial and, after that, USD $2 per active smart lock per month. HTTP 402 is the documented billing failure.
+
+This change did not create an API client, did not start a trial, did not enter a card, and did not call igloohome or a lock. No credentials from a real account are in the repository.
 
 ## Tests
 
-Unit tests cover UTC conversion, hourly and daily limits, mocked hourly/daily/auth/billing errors, token reuse, and the 0.1.2 package surface. They use a fake HTTP session. They do not call igloohome and they do not contain real credentials.
+Unit tests cover UTC conversion, hourly and daily limits, the prefix check (including that a retail name is not a device id), mocked hourly/daily/auth/billing errors, token reuse, and the 0.1.2 module surface. They use a fake HTTP session.
 
-Full Home Assistant config-flow tests were not part of this package. They need a Home Assistant install and were not given a fake pass.
+Full Home Assistant config-flow tests were not run. Home Assistant is not installed in the environment that ran the unit tests, and those tests were not marked passed.

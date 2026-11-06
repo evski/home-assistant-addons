@@ -180,10 +180,11 @@ async def test_hourly_and_daily_posts_use_home_api_and_do_not_keep_the_pin(caplo
     snapshot = await client.fetch_snapshot({LOCK, "OE1X01cd3a5f", "ZZZZ01abcdef"})
     assert [lock.device_id for lock in snapshot.locks] == [LOCK, "ZZZZ01abcdef"]
     metal = next(lock for lock in snapshot.locks if lock.device_id == LOCK)
-    assert metal.model == "Deadbolt 2S Metal Grey"
+    assert metal.table_prefix == "IGB4"
+    assert metal.device_type == "Lock"
     assert metal.bridge_ids == (BRIDGE,)
     unknown = next(lock for lock in snapshot.locks if lock.device_id == "ZZZZ01abcdef")
-    assert unknown.model is None
+    assert unknown.table_prefix is None
     assert snapshot.status == "active"
     assert snapshot.tier == "paid"
     payload = diagnostics_payload(snapshot)
@@ -193,6 +194,8 @@ async def test_hourly_and_daily_posts_use_home_api_and_do_not_keep_the_pin(caplo
     assert "client_secret" not in encoded
     assert "access_token" not in encoded
     assert CLIENT not in encoded
+    assert "Deadbolt" not in encoded
+    assert "model" not in payload["locks"][0]
 
 
 @pytest.mark.asyncio
